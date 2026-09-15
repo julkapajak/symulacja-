@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SimLife — gra w stylu The Sims</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div id="topbar">
+  <div class="topbar-group">
+    <span id="simName">—</span>
+    <span id="mood" class="mood">😐</span>
+  </div>
+  <div class="topbar-group">
+    <span id="clock">Dzień 1, 08:00</span>
+    <div id="speedControls">
+      <button data-speed="0" title="Pauza">⏸</button>
+      <button data-speed="1" class="active" title="Normalna prędkość">▶</button>
+      <button data-speed="2" title="2x">⏩</button>
+      <button data-speed="3" title="3x">⏩⏩</button>
+    </div>
+  </div>
+  <div class="topbar-group">
+    <span id="money">💰 0 zł</span>
+    <button id="saveBtn" title="Zapisz grę">💾</button>
+    <button id="newGameBtn" title="Nowa gra">🆕</button>
+  </div>
+</div>
+
+<div id="gameArea">
+  <canvas id="canvas" width="704" height="396"></canvas>
+  <div id="actionPanel" class="hidden"></div>
+  <div id="shopPanel" class="hidden"></div>
+  <div id="toastContainer"></div>
+</div>
+
+<div id="needsPanel">
+  <div class="need" data-need="hunger">
+    <span class="need-icon">🍗</span>
+    <div class="need-bar"><div class="need-fill"></div></div>
+    <span class="need-label">Głód</span>
+  </div>
+  <div class="need" data-need="energy">
+    <span class="need-icon">⚡</span>
+    <div class="need-bar"><div class="need-fill"></div></div>
+    <span class="need-label">Energia</span>
+  </div>
+  <div class="need" data-need="hygiene">
+    <span class="need-icon">🧼</span>
+    <div class="need-bar"><div class="need-fill"></div></div>
+    <span class="need-label">Higiena</span>
+  </div>
+  <div class="need" data-need="fun">
+    <span class="need-icon">🎉</span>
+    <div class="need-bar"><div class="need-fill"></div></div>
+    <span class="need-label">Zabawa</span>
+  </div>
+  <div class="need" data-need="social">
+    <span class="need-icon">💬</span>
+    <div class="need-bar"><div class="need-fill"></div></div>
+    <span class="need-label">Kontakty</span>
+  </div>
+  <div class="need" data-need="bladder">
+    <span class="need-icon">🚻</span>
+    <div class="need-bar"><div class="need-fill"></div></div>
+    <span class="need-label">Pęcherz</span>
+  </div>
+</div>
+
+<div id="charCreator" class="modalOverlay">
+  <div class="modal">
+    <h2>Stwórz swojego Sima</h2>
+    <label>Imię
+      <input id="ccName" type="text" maxlength="16" placeholder="np. Alex" />
+    </label>
+    <div class="ccRow">
+      <span>Kolor</span>
+      <div id="ccColors" class="swatches"></div>
+    </div>
+    <div class="ccRow">
+      <span>Cecha charakteru</span>
+      <div id="ccTraits" class="traits"></div>
+    </div>
+    <button id="ccConfirm">Zacznij grać</button>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
