@@ -8,12 +8,60 @@ const BASE_MIN_MS = 150; // real ms per game minute at 1x speed
 const SAVE_KEY = "simlife_save_v1";
 
 const ZONES = [
-  { x0: 0, y0: 0, x1: 3, y1: 3, color: "#f3e3c3", name: "kuchnia" },
-  { x0: 0, y0: 4, x1: 3, y1: 8, color: "#cfe7f5", name: "łazienka" },
-  { x0: 4, y0: 0, x1: 7, y1: 8, color: "#e6d9f2", name: "sypialnia" },
-  { x0: 8, y0: 0, x1: 11, y1: 8, color: "#d9f0d3", name: "salon" },
-  { x0: 12, y0: 0, x1: 15, y1: 8, color: "#8fd18f", name: "ogród" },
+  { x0: 0, y0: 0, x1: 3, y1: 3, color: "#e8d2a8", name: "kuchnia", floorType: "tile" },
+  { x0: 0, y0: 4, x1: 3, y1: 8, color: "#bfe0ea", name: "łazienka", floorType: "tile" },
+  { x0: 4, y0: 0, x1: 7, y1: 8, color: "#c9a06e", name: "sypialnia", floorType: "wood" },
+  { x0: 8, y0: 0, x1: 11, y1: 8, color: "#caa070", name: "salon", floorType: "wood" },
+  { x0: 12, y0: 0, x1: 15, y1: 8, color: "#7ec46a", name: "ogród", floorType: "grass" },
 ];
+
+/* ---------- Walls, doors & windows ---------- */
+const WALL_H = 88;
+
+function zoneOf(tx, ty) {
+  for (const z of ZONES) {
+    if (tx >= z.x0 && tx <= z.x1 && ty >= z.y0 && ty <= z.y1) return z;
+  }
+  return null;
+}
+function isIndoorZone(z) { return !!z && z.name !== "ogród"; }
+
+const DOOR_EDGES = new Set(["4,2,W", "4,6,W", "2,4,N", "8,4,W"]);
+const WINDOW_EDGES = new Set(["1,0,N", "5,0,N", "9,0,N", "0,1,W", "0,6,W"]);
+
+const WALLS = [];
+const BLOCKED_EDGES = new Set();
+
+(function buildWalls() {
+  for (let ty = 0; ty < ROWS; ty++) {
+    for (let tx = 0; tx < COLS; tx++) {
+      const z = zoneOf(tx, ty);
+      if (!isIndoorZone(z)) continue;
+      const zn = ty > 0 ? zoneOf(tx, ty - 1) : null;
+      if (ty === 0 || zn !== z) {
+        const key = `${tx},${ty},N`;
+        const kind = DOOR_EDGES.has(key) ? "door" : WINDOW_EDGES.has(key) ? "window" : "solid";
+        WALLS.push({ tx, ty, edge: "N", kind });
+        if (kind === "solid") BLOCKED_EDGES.add(key);
+      }
+      const zw = tx > 0 ? zoneOf(tx - 1, ty) : null;
+      if (tx === 0 || zw !== z) {
+        const key = `${tx},${ty},W`;
+        const kind = DOOR_EDGES.has(key) ? "door" : WINDOW_EDGES.has(key) ? "window" : "solid";
+        WALLS.push({ tx, ty, edge: "W", kind });
+        if (kind === "solid") BLOCKED_EDGES.add(key);
+      }
+    }
+  }
+})();
+
+function edgeBlocked(ax, ay, bx, by) {
+  if (bx === ax && by === ay - 1) return BLOCKED_EDGES.has(`${ax},${ay},N`);
+  if (bx === ax - 1 && by === ay) return BLOCKED_EDGES.has(`${ax},${ay},W`);
+  if (bx === ax && by === ay + 1) return BLOCKED_EDGES.has(`${bx},${by},N`);
+  if (bx === ax + 1 && by === ay) return BLOCKED_EDGES.has(`${bx},${by},W`);
+  return false;
+}
 
 const NEED_KEYS = ["hunger", "energy", "hygiene", "fun", "social", "bladder"];
 const NEED_META = {
@@ -149,6 +197,7 @@ function bfsFrom(sx, sy) {
       const nx = cx + dx, ny = cy + dy;
       const k = key(nx, ny);
       if (!isWalkable(nx, ny) || dist.has(k)) continue;
+      if (edgeBlocked(cx, cy, nx, ny)) continue;
       dist.set(k, d + 1);
       prev.set(k, key(cx, cy));
       q.push([nx, ny]);
@@ -196,6 +245,7 @@ function createSim(name, color, traitKey) {
     needs: { hunger: 85, energy: 85, hygiene: 85, fun: 85, social: 85, bladder: 85 },
     action: null, // { targetId, label, need, gain, duration, side, elapsed, isWork }
     atWork: false,
+    walkPhase: 0,
   };
 }
 
@@ -321,7 +371,7 @@ function tickMinutes(n) {
 
 function moveSimAlongPath(dtSec) {
   const sim = state.sim;
-  if (sim.path.length === 0) return;
+  if (sim.path.length === 0) { sim.walkPhase = 0; return; }
   const target = sim.path[0];
   const dx = target.x - sim.x, dy = target.y - sim.y;
   const dist = Math.hypot(dx, dy);
@@ -333,6 +383,7 @@ function moveSimAlongPath(dtSec) {
     sim.x += (dx / dist) * step;
     sim.y += (dy / dist) * step;
   }
+  sim.walkPhase += dtSec * 9;
 }
 
 function gameLoop(ts) {
@@ -360,7 +411,7 @@ function gameLoop(ts) {
 /* ---------- Rendering (isometric 3D) ---------- */
 const ISO_TW = 52; // tile diamond full width
 const ISO_TH = 26; // tile diamond full height
-const ISO_TOP_MARGIN = 95; // room above the grid for tall furniture / the sim
+const ISO_TOP_MARGIN = WALL_H + 32; // room above the grid for walls / tall furniture / the sim
 const ISO_SIDE_PAD = 26;
 
 function isoX(tx, ty) { return (tx - ty) * (ISO_TW / 2); }
@@ -377,16 +428,73 @@ const CANVAS_H = Math.ceil(ISO_MAX_Y - ISO_MIN_Y + ISO_TOP_MARGIN + ISO_TH + 30)
 
 function project(tx, ty) { return { x: ORIGIN_X + isoX(tx, ty), y: ORIGIN_Y + isoY(tx, ty) }; }
 
-function zoneColorAt(tx, ty) {
-  for (const z of ZONES) {
-    if (tx >= z.x0 && tx <= z.x1 && ty >= z.y0 && ty <= z.y1) return z.color;
-  }
-  return "#cccccc";
-}
-
 function shade(hex, factor) {
   const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
   return `rgb(${Math.round(r * factor)},${Math.round(g * factor)},${Math.round(b * factor)})`;
+}
+
+function lerpPt(a, b, t) { return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }; }
+function facePoint(b0, b1, t0, t1, u, v) {
+  const bx = b0.x + (b1.x - b0.x) * u, by = b0.y + (b1.y - b0.y) * u;
+  const tx = t0.x + (t1.x - t0.x) * u, ty = t0.y + (t1.y - t0.y) * u;
+  return { x: bx + (tx - bx) * v, y: by + (ty - by) * v };
+}
+function bilerp(N, E, S, W, u, v) {
+  const x = N.x * (1 - u) * (1 - v) + E.x * u * (1 - v) + S.x * u * v + W.x * (1 - u) * v;
+  const y = N.y * (1 - u) * (1 - v) + E.y * u * (1 - v) + S.y * u * v + W.y * (1 - u) * v;
+  return { x, y };
+}
+
+function mulberry32(seed) {
+  let t = seed >>> 0;
+  return function () {
+    t += 0x6d2b79f5;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function hexToRgb(hex) {
+  return { r: parseInt(hex.slice(1, 3), 16), g: parseInt(hex.slice(3, 5), 16), b: parseInt(hex.slice(5, 7), 16) };
+}
+function lerpColor(hex1, hex2, t) {
+  const c1 = hexToRgb(hex1), c2 = hexToRgb(hex2);
+  const r = Math.round(c1.r + (c2.r - c1.r) * t);
+  const g = Math.round(c1.g + (c2.g - c1.g) * t);
+  const b = Math.round(c1.b + (c2.b - c1.b) * t);
+  return `rgb(${r},${g},${b})`;
+}
+
+const SKY_STOPS = [
+  { h: 0, top: "#0b1030", bottom: "#1c2550" },
+  { h: 5, top: "#0b1030", bottom: "#1c2550" },
+  { h: 6.5, top: "#ff9d6c", bottom: "#ffd9a0" },
+  { h: 8, top: "#8ec9f0", bottom: "#dff1ff" },
+  { h: 17, top: "#8ec9f0", bottom: "#dff1ff" },
+  { h: 19, top: "#ff8a5c", bottom: "#ffd08a" },
+  { h: 21, top: "#2b2560", bottom: "#5a3a6e" },
+  { h: 23, top: "#0b1030", bottom: "#1c2550" },
+  { h: 24, top: "#0b1030", bottom: "#1c2550" },
+];
+function skyColors(hour) {
+  let a = SKY_STOPS[0], b = SKY_STOPS[SKY_STOPS.length - 1];
+  for (let i = 0; i < SKY_STOPS.length - 1; i++) {
+    if (hour >= SKY_STOPS[i].h && hour <= SKY_STOPS[i + 1].h) { a = SKY_STOPS[i]; b = SKY_STOPS[i + 1]; break; }
+  }
+  const t = (hour - a.h) / Math.max(0.0001, b.h - a.h);
+  return { top: lerpColor(a.top, b.top, t), bottom: lerpColor(a.bottom, b.bottom, t) };
+}
+function nightAmount(hour) {
+  if (hour <= 5 || hour >= 21) return 1;
+  if (hour >= 6 && hour <= 19) return 0;
+  if (hour < 6) return 1 - (hour - 5);
+  return (hour - 19) / 2;
+}
+function warmAmount(hour) {
+  const dawn = Math.max(0, 1 - Math.abs(hour - 6.5) / 1.5);
+  const dusk = Math.max(0, 1 - Math.abs(hour - 18.5) / 1.5);
+  return Math.max(dawn, dusk);
 }
 
 const canvas = document.getElementById("canvas");
@@ -395,54 +503,197 @@ canvas.height = CANVAS_H;
 const ctx = canvas.getContext("2d");
 
 function render() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const hourFloat = state.minutes / 60;
+  const sky = skyColors(hourFloat);
+  const skyGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  skyGrad.addColorStop(0, sky.top);
+  skyGrad.addColorStop(1, sky.bottom);
+  ctx.fillStyle = skyGrad;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  const items = [];
-  for (let ty = 0; ty < ROWS; ty++) {
-    for (let tx = 0; tx < COLS; tx++) {
-      const color = zoneColorAt(tx, ty);
-      items.push({ depth: tx + ty, draw: () => drawFloorTile(tx, ty, color) });
+  const night = nightAmount(hourFloat);
+  if (night > 0) {
+    const rnd = mulberry32(42);
+    ctx.fillStyle = `rgba(255,255,255,${0.85 * night})`;
+    for (let i = 0; i < 40; i++) {
+      const sx = rnd() * canvas.width, sy = rnd() * (ISO_TOP_MARGIN * 0.85);
+      ctx.beginPath(); ctx.arc(sx, sy, rnd() * 1.2 + 0.3, 0, Math.PI * 2); ctx.fill();
     }
   }
+  const isDay = hourFloat >= 6 && hourFloat <= 18;
+  const discColor = isDay ? "#fff3c4" : "#e8ecf5";
+  const glowColor = isDay ? "rgba(255,240,180,0.35)" : "rgba(220,225,245,0.22)";
+  const sunX = 30 + (hourFloat / 24) * (canvas.width - 60);
+  const sunY = 20 + 25 * Math.pow((hourFloat - 12) / 12, 2);
+  const glow = ctx.createRadialGradient(sunX, sunY, 2, sunX, sunY, 28);
+  glow.addColorStop(0, glowColor); glow.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(sunX, sunY, 28, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = discColor; ctx.beginPath(); ctx.arc(sunX, sunY, 9, 0, Math.PI * 2); ctx.fill();
+
+  // Pass 1: floor tiles.
+  const floorItems = [];
+  for (let ty = 0; ty < ROWS; ty++) {
+    for (let tx = 0; tx < COLS; tx++) {
+      const zone = zoneOf(tx, ty);
+      floorItems.push({ depth: tx + ty, draw: () => drawFloorTile(tx, ty, zone) });
+    }
+  }
+  floorItems.sort((a, b) => a.depth - b.depth);
+  for (const it of floorItems) it.draw();
+
+  // Pass 2: walls. Drawn as their own pass (always behind furniture/the sim) because a
+  // tall wall panel can visually bleed into a lower-depth neighbor tile's screen space,
+  // which would otherwise wrongly paint over furniture or the sim standing there.
+  const wallItems = WALLS.map((w) => ({
+    depth: w.tx + w.ty,
+    draw: () => {
+      if (w.kind === "door") drawDoorFrame(w.tx, w.ty, w.edge);
+      else if (w.kind === "window") drawWallWindow(w.tx, w.ty, w.edge);
+      else drawWallSolid(w.tx, w.ty, w.edge);
+    },
+  }));
+  wallItems.sort((a, b) => a.depth - b.depth);
+  for (const it of wallItems) it.draw();
+
+  // Pass 3: furniture, shop slots and the sim, depth-sorted among themselves.
+  const objItems = [];
   for (const f of state.furniture) {
     const v = VISUALS[f.type] || VISUALS.default;
-    items.push({ depth: f.x + f.y + 0.5, draw: () => drawIsoObj(f, v) });
+    objItems.push({ depth: f.x + f.y + 0.5, draw: () => drawIsoObj(f, v) });
   }
   for (const s of state.slots) {
     if (s.item) {
       const v = VISUALS[s.item.type] || VISUALS.default;
-      items.push({ depth: s.x + s.y + 0.5, draw: () => drawIsoObj({ x: s.x, y: s.y, icon: s.item.icon }, v) });
+      objItems.push({ depth: s.x + s.y + 0.5, draw: () => drawIsoObj({ x: s.x, y: s.y, icon: s.item.icon, type: s.item.type }, v) });
     } else {
-      items.push({ depth: s.x + s.y + 0.4, draw: () => drawEmptySlot(s) });
+      objItems.push({ depth: s.x + s.y + 0.4, draw: () => drawEmptySlot(s) });
     }
   }
   if (state.sim) {
-    items.push({ depth: state.sim.x + state.sim.y + 0.6, draw: () => drawSim(state.sim) });
+    objItems.push({ depth: state.sim.x + state.sim.y + 0.6, draw: () => drawSim(state.sim) });
   }
-  items.sort((a, b) => a.depth - b.depth);
-  for (const it of items) it.draw();
+  objItems.sort((a, b) => a.depth - b.depth);
+  for (const it of objItems) it.draw();
 
-  const hour = Math.floor(state.minutes / 60);
-  if (hour >= 21 || hour < 6) {
-    const nightAlpha = hour >= 21 ? Math.min(0.45, (hour - 21) * 0.15) : Math.max(0, 0.45 - hour * 0.08);
-    ctx.fillStyle = `rgba(10,15,40,${nightAlpha})`;
+  if (night > 0) {
+    ctx.fillStyle = `rgba(15,20,55,${night * 0.38})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+  const warm = warmAmount(hourFloat);
+  if (warm > 0) {
+    ctx.fillStyle = `rgba(255,140,60,${warm * 0.15})`;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
 }
 
-function drawFloorTile(tx, ty, color) {
+function drawFloorTile(tx, ty, zone) {
   const { x: cx, y: cy } = project(tx, ty);
+  const N = { x: cx, y: cy - ISO_TH / 2 }, E = { x: cx + ISO_TW / 2, y: cy };
+  const S = { x: cx, y: cy + ISO_TH / 2 }, W = { x: cx - ISO_TW / 2, y: cy };
+  const checker = (tx + ty) % 2 === 0;
+  const base = zone.floorType === "tile" ? shade(zone.color, checker ? 1.0 : 0.93) : zone.color;
+
   ctx.beginPath();
-  ctx.moveTo(cx, cy - ISO_TH / 2);
-  ctx.lineTo(cx + ISO_TW / 2, cy);
-  ctx.lineTo(cx, cy + ISO_TH / 2);
-  ctx.lineTo(cx - ISO_TW / 2, cy);
-  ctx.closePath();
-  ctx.fillStyle = color;
+  ctx.moveTo(N.x, N.y); ctx.lineTo(E.x, E.y); ctx.lineTo(S.x, S.y); ctx.lineTo(W.x, W.y); ctx.closePath();
+  ctx.fillStyle = base;
   ctx.fill();
+
+  if (zone.floorType === "wood") {
+    ctx.save();
+    ctx.clip();
+    ctx.strokeStyle = "rgba(0,0,0,0.10)";
+    ctx.lineWidth = 1;
+    for (let i = 1; i <= 2; i++) {
+      const p0 = lerpPt(W, N, i / 3), p1 = lerpPt(S, E, i / 3);
+      ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
+    }
+    ctx.restore();
+  } else if (zone.floorType === "tile") {
+    ctx.strokeStyle = "rgba(0,0,0,0.12)";
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(N.x, N.y); ctx.lineTo(S.x, S.y); ctx.moveTo(W.x, W.y); ctx.lineTo(E.x, E.y); ctx.stroke();
+  } else if (zone.floorType === "grass") {
+    const rnd = mulberry32(tx * 131 + ty * 977 + 7);
+    ctx.fillStyle = "rgba(20,60,15,0.22)";
+    for (let i = 0; i < 3; i++) {
+      const u = rnd() * 2 - 1, v = rnd() * 2 - 1;
+      if (Math.abs(u) + Math.abs(v) > 0.75) continue;
+      const px = cx + u * (ISO_TW / 2) * 0.85, py = cy + v * (ISO_TH / 2) * 0.85;
+      ctx.beginPath(); ctx.arc(px, py, 1.3, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
   ctx.strokeStyle = "rgba(0,0,0,0.10)";
   ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(N.x, N.y); ctx.lineTo(E.x, E.y); ctx.lineTo(S.x, S.y); ctx.lineTo(W.x, W.y); ctx.closePath();
   ctx.stroke();
+}
+
+function wallCorners(tx, ty, edge) {
+  const { x: cx, y: cy } = project(tx, ty);
+  const N = { x: cx, y: cy - ISO_TH / 2 };
+  const E = { x: cx + ISO_TW / 2, y: cy };
+  const W = { x: cx - ISO_TW / 2, y: cy };
+  const topY = cy - WALL_H;
+  const Nt = { x: N.x, y: topY - ISO_TH / 2 };
+  if (edge === "N") {
+    const Et = { x: E.x, y: topY };
+    return { b0: N, b1: E, t0: Nt, t1: Et };
+  }
+  const Wt = { x: W.x, y: topY };
+  return { b0: W, b1: N, t0: Wt, t1: Nt };
+}
+
+function drawWallSolid(tx, ty, edge) {
+  const p = wallCorners(tx, ty, edge);
+  const base = edge === "N" ? "#f1e8d9" : "#e2d8c4";
+  ctx.beginPath();
+  ctx.moveTo(p.b0.x, p.b0.y); ctx.lineTo(p.b1.x, p.b1.y); ctx.lineTo(p.t1.x, p.t1.y); ctx.lineTo(p.t0.x, p.t0.y);
+  ctx.closePath();
+  ctx.fillStyle = base;
+  ctx.fill();
+  ctx.strokeStyle = "rgba(0,0,0,0.15)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  const bb0 = facePoint(p.b0, p.b1, p.t0, p.t1, 0, 0.05), bb1 = facePoint(p.b0, p.b1, p.t0, p.t1, 1, 0.05);
+  ctx.beginPath(); ctx.moveTo(p.b0.x, p.b0.y); ctx.lineTo(p.b1.x, p.b1.y); ctx.lineTo(bb1.x, bb1.y); ctx.lineTo(bb0.x, bb0.y); ctx.closePath();
+  ctx.fillStyle = "rgba(0,0,0,0.12)"; ctx.fill();
+
+  const tt0 = facePoint(p.b0, p.b1, p.t0, p.t1, 0, 0.94), tt1 = facePoint(p.b0, p.b1, p.t0, p.t1, 1, 0.94);
+  ctx.beginPath(); ctx.moveTo(tt0.x, tt0.y); ctx.lineTo(tt1.x, tt1.y); ctx.lineTo(p.t1.x, p.t1.y); ctx.lineTo(p.t0.x, p.t0.y); ctx.closePath();
+  ctx.fillStyle = "rgba(255,255,255,0.22)"; ctx.fill();
+}
+
+function drawWallWindow(tx, ty, edge) {
+  drawWallSolid(tx, ty, edge);
+  const p = wallCorners(tx, ty, edge);
+  const c00 = facePoint(p.b0, p.b1, p.t0, p.t1, 0.26, 0.32), c10 = facePoint(p.b0, p.b1, p.t0, p.t1, 0.74, 0.32);
+  const c11 = facePoint(p.b0, p.b1, p.t0, p.t1, 0.74, 0.78), c01 = facePoint(p.b0, p.b1, p.t0, p.t1, 0.26, 0.78);
+  ctx.beginPath(); ctx.moveTo(c00.x, c00.y); ctx.lineTo(c10.x, c10.y); ctx.lineTo(c11.x, c11.y); ctx.lineTo(c01.x, c01.y); ctx.closePath();
+  const sky = skyColors(state.minutes / 60);
+  ctx.fillStyle = sky.bottom;
+  ctx.fill();
+  ctx.strokeStyle = "#6b4f34"; ctx.lineWidth = 2; ctx.stroke();
+  const m0 = facePoint(p.b0, p.b1, p.t0, p.t1, 0.5, 0.32), m1 = facePoint(p.b0, p.b1, p.t0, p.t1, 0.5, 0.78);
+  const m2 = facePoint(p.b0, p.b1, p.t0, p.t1, 0.26, 0.55), m3 = facePoint(p.b0, p.b1, p.t0, p.t1, 0.74, 0.55);
+  ctx.beginPath(); ctx.moveTo(m0.x, m0.y); ctx.lineTo(m1.x, m1.y); ctx.moveTo(m2.x, m2.y); ctx.lineTo(m3.x, m3.y);
+  ctx.strokeStyle = "#6b4f34"; ctx.lineWidth = 1.5; ctx.stroke();
+}
+
+function drawDoorFrame(tx, ty, edge) {
+  const p = wallCorners(tx, ty, edge);
+  const jw = 0.09;
+  const parts = [[0, jw], [1 - jw, 1]];
+  for (const [u0, u1] of parts) {
+    const a = facePoint(p.b0, p.b1, p.t0, p.t1, u0, 0), b = facePoint(p.b0, p.b1, p.t0, p.t1, u1, 0);
+    const c = facePoint(p.b0, p.b1, p.t0, p.t1, u1, 0.92), d = facePoint(p.b0, p.b1, p.t0, p.t1, u0, 0.92);
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.lineTo(c.x, c.y); ctx.lineTo(d.x, d.y); ctx.closePath();
+    ctx.fillStyle = "#8a6b45"; ctx.fill(); ctx.strokeStyle = "rgba(0,0,0,0.25)"; ctx.lineWidth = 1; ctx.stroke();
+  }
+  const h0 = facePoint(p.b0, p.b1, p.t0, p.t1, 0, 0.92), h1 = facePoint(p.b0, p.b1, p.t0, p.t1, 1, 0.92);
+  ctx.beginPath(); ctx.moveTo(h0.x, h0.y); ctx.lineTo(h1.x, h1.y); ctx.lineTo(p.t1.x, p.t1.y); ctx.lineTo(p.t0.x, p.t0.y); ctx.closePath();
+  ctx.fillStyle = "#8a6b45"; ctx.fill(); ctx.strokeStyle = "rgba(0,0,0,0.25)"; ctx.stroke();
 }
 
 function drawIsoObj(obj, v) {
@@ -462,6 +713,8 @@ function drawIsoObj(obj, v) {
   ctx.moveTo(S.x, S.y); ctx.lineTo(E.x, E.y); ctx.lineTo(Et.x, Et.y); ctx.lineTo(St.x, St.y); ctx.closePath();
   ctx.fillStyle = shade(v.color, 0.48); ctx.fill(); ctx.stroke();
 
+  drawFurnitureDetail(obj, v, { N, E, S, W, Nt, Et, St, Wt });
+
   ctx.beginPath();
   ctx.moveTo(Nt.x, Nt.y); ctx.lineTo(Et.x, Et.y); ctx.lineTo(St.x, St.y); ctx.lineTo(Wt.x, Wt.y); ctx.closePath();
   ctx.fillStyle = v.color; ctx.fill();
@@ -475,6 +728,63 @@ function drawIsoObj(obj, v) {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(obj.icon, cx, topY - 1);
+  }
+}
+
+function drawFurnitureDetail(obj, v, g) {
+  const { N, E, S, W, Nt, Et, St, Wt } = g;
+  switch (obj.type) {
+    case "bed": {
+      const p0 = bilerp(Nt, Et, St, Wt, 0.15, 0.5), p1 = bilerp(Nt, Et, St, Wt, 0.85, 0.5);
+      const p2 = bilerp(Nt, Et, St, Wt, 0.85, 0.95), p3 = bilerp(Nt, Et, St, Wt, 0.15, 0.95);
+      ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y); ctx.closePath();
+      ctx.fillStyle = "#5b7fc4"; ctx.fill(); ctx.strokeStyle = "rgba(0,0,0,0.2)"; ctx.lineWidth = 1; ctx.stroke();
+      const q0 = bilerp(Nt, Et, St, Wt, 0.15, 0.08), q1 = bilerp(Nt, Et, St, Wt, 0.85, 0.08);
+      const q2 = bilerp(Nt, Et, St, Wt, 0.85, 0.42), q3 = bilerp(Nt, Et, St, Wt, 0.15, 0.42);
+      ctx.beginPath(); ctx.moveTo(q0.x, q0.y); ctx.lineTo(q1.x, q1.y); ctx.lineTo(q2.x, q2.y); ctx.lineTo(q3.x, q3.y); ctx.closePath();
+      ctx.fillStyle = "#fbfbf6"; ctx.fill(); ctx.strokeStyle = "rgba(0,0,0,0.15)"; ctx.stroke();
+      break;
+    }
+    case "tv": {
+      const p0 = facePoint(S, E, St, Et, 0.15, 0.25), p1 = facePoint(S, E, St, Et, 0.85, 0.25);
+      const p2 = facePoint(S, E, St, Et, 0.85, 0.85), p3 = facePoint(S, E, St, Et, 0.15, 0.85);
+      ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y); ctx.closePath();
+      const grad = ctx.createLinearGradient(p0.x, p0.y, p2.x, p2.y);
+      grad.addColorStop(0, "#4a90d9"); grad.addColorStop(1, "#111820");
+      ctx.fillStyle = grad; ctx.fill(); ctx.strokeStyle = "rgba(0,0,0,0.4)"; ctx.lineWidth = 1; ctx.stroke();
+      break;
+    }
+    case "fridge": {
+      const p0 = facePoint(S, E, St, Et, 0.24, 0.12), p1 = facePoint(S, E, St, Et, 0.32, 0.12);
+      const p2 = facePoint(S, E, St, Et, 0.32, 0.88), p3 = facePoint(S, E, St, Et, 0.24, 0.88);
+      ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y); ctx.closePath();
+      ctx.fillStyle = "rgba(0,0,0,0.32)"; ctx.fill();
+      const s0 = facePoint(S, E, St, Et, 0.1, 0.32), s1 = facePoint(S, E, St, Et, 0.9, 0.32);
+      ctx.beginPath(); ctx.moveTo(s0.x, s0.y); ctx.lineTo(s1.x, s1.y); ctx.strokeStyle = "rgba(0,0,0,0.18)"; ctx.lineWidth = 1; ctx.stroke();
+      break;
+    }
+    case "bookshelf": {
+      for (const hv of [0.3, 0.55, 0.8]) {
+        const a = facePoint(W, S, Wt, St, 0, hv), b = facePoint(W, S, Wt, St, 1, hv);
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+        ctx.strokeStyle = "rgba(0,0,0,0.25)"; ctx.lineWidth = 1; ctx.stroke();
+      }
+      break;
+    }
+    case "car": {
+      const p0 = facePoint(S, E, St, Et, 0.12, 0.5), p1 = facePoint(S, E, St, Et, 0.88, 0.5);
+      const p2 = facePoint(S, E, St, Et, 0.88, 0.8), p3 = facePoint(S, E, St, Et, 0.12, 0.8);
+      ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y); ctx.closePath();
+      ctx.fillStyle = "#bfe3f2"; ctx.fill(); ctx.strokeStyle = "rgba(0,0,0,0.3)"; ctx.lineWidth = 1; ctx.stroke();
+      break;
+    }
+    case "sofa": {
+      const a = facePoint(S, E, St, Et, 0.5, 0.15), b = facePoint(S, E, St, Et, 0.5, 0.85);
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.strokeStyle = "rgba(0,0,0,0.2)"; ctx.lineWidth = 1; ctx.stroke();
+      break;
+    }
+    default:
+      break;
   }
 }
 
@@ -506,35 +816,58 @@ function drawSim(sim) {
   ctx.fillStyle = "rgba(0,0,0,0.28)";
   ctx.fill();
 
-  const bodyH = 30, bw = 15;
+  const walking = sim.path.length > 0;
+  const swing = walking ? Math.sin(sim.walkPhase) * 5 : 0;
+
+  const legTopY = cy - 4, legH = 14;
+  ctx.strokeStyle = "#33302c";
+  ctx.lineCap = "round";
+  ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.moveTo(cx - 4, legTopY); ctx.lineTo(cx - 4 - swing * 0.4, legTopY + legH); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx + 4, legTopY); ctx.lineTo(cx + 4 + swing * 0.4, legTopY + legH); ctx.stroke();
+
+  const bodyH = 26, bw = 16;
+  const bodyTopY = legTopY - bodyH;
   ctx.beginPath();
-  ctx.moveTo(cx - bw / 2, cy - 2);
-  ctx.lineTo(cx - bw / 2, cy - bodyH + bw / 2);
-  ctx.arc(cx, cy - bodyH + bw / 2, bw / 2, Math.PI, 0);
-  ctx.lineTo(cx + bw / 2, cy - 2);
+  ctx.moveTo(cx - bw / 2, legTopY);
+  ctx.lineTo(cx - bw / 2, bodyTopY + bw / 2);
+  ctx.arc(cx, bodyTopY + bw / 2, bw / 2, Math.PI, 0);
+  ctx.lineTo(cx + bw / 2, legTopY);
   ctx.closePath();
   ctx.fillStyle = sim.color;
   ctx.fill();
   ctx.strokeStyle = "#22302a";
-  ctx.lineWidth = 2;
-  ctx.stroke();
-
-  const headCy = cy - bodyH - 6;
-  ctx.beginPath();
-  ctx.arc(cx, headCy, 9, 0, Math.PI * 2);
-  ctx.fillStyle = "#ffe0bd";
-  ctx.fill();
-  ctx.strokeStyle = "#22302a";
   ctx.lineWidth = 1.5;
   ctx.stroke();
-  ctx.font = "11px sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText("🙂", cx, headCy + 1);
+
+  ctx.strokeStyle = sim.color;
+  ctx.lineWidth = 4;
+  ctx.lineCap = "round";
+  ctx.beginPath(); ctx.moveTo(cx - bw / 2 + 1, bodyTopY + 6); ctx.lineTo(cx - bw / 2 - 2 - swing * 0.3, bodyTopY + 18); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx + bw / 2 - 1, bodyTopY + 6); ctx.lineTo(cx + bw / 2 + 2 + swing * 0.3, bodyTopY + 18); ctx.stroke();
+
+  const headCy = bodyTopY - 7;
+  ctx.beginPath();
+  ctx.arc(cx, headCy, 8.5, 0, Math.PI * 2);
+  ctx.fillStyle = "#f4c9a0";
+  ctx.fill();
+  ctx.strokeStyle = "#22302a";
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(cx, headCy - 1, 8.8, Math.PI * 1.05, Math.PI * 1.95);
+  ctx.strokeStyle = "#4a3527";
+  ctx.lineWidth = 4;
+  ctx.stroke();
+
+  ctx.fillStyle = "#22302a";
+  ctx.beginPath(); ctx.arc(cx - 2.4, headCy, 0.9, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx + 2.4, headCy, 0.9, 0, Math.PI * 2); ctx.fill();
 
   if (sim.action) {
     const frac = Math.min(1, sim.action.elapsed / sim.action.duration);
-    const by = headCy - 18;
+    const by = headCy - 16;
     ctx.fillStyle = "rgba(0,0,0,0.5)";
     ctx.fillRect(cx - 16, by, 32, 5);
     ctx.fillStyle = "#4caf50";
