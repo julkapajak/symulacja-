@@ -88,6 +88,26 @@ const EMPTY_SLOTS = [
   { id: "slot3", x: 13, y: 6 },
 ];
 
+/* ---------- 3D (isometric) visuals: extrusion height + base color per type ---------- */
+const VISUALS = {
+  fridge: { h: 40, color: "#f2f4f4" },
+  sink: { h: 20, color: "#dceff5" },
+  toilet: { h: 22, color: "#ffffff" },
+  shower: { h: 34, color: "#cdeaf7" },
+  bed: { h: 16, color: "#e3d3f5" },
+  bookshelf: { h: 42, color: "#b3814f" },
+  sofa: { h: 22, color: "#efa08a" },
+  tv: { h: 30, color: "#33393f" },
+  computer: { h: 26, color: "#7a828c" },
+  car: { h: 26, color: "#e35b52" },
+  tree: { h: 36, color: "#5fae5f" },
+  plant: { h: 18, color: "#6fae55" },
+  piano: { h: 34, color: "#262626" },
+  gym: { h: 26, color: "#9aa3ad" },
+  firepit: { h: 14, color: "#d97a3d" },
+  default: { h: 24, color: "#dddddd" },
+};
+
 /* ---------- Game state ---------- */
 const state = {
   sim: null,
@@ -196,14 +216,6 @@ function toast(msg) {
 }
 
 /* ---------- Actions ---------- */
-function getObjAt(x, y) {
-  for (const f of state.furniture) if (f.x === x && f.y === y) return f;
-  for (const s of state.slots) if (s.item && s.x === x && s.y === y) {
-    return { id: s.id, type: s.item.type, label: s.item.label, icon: s.item.icon, x: s.x, y: s.y, action: s.item.action };
-  }
-  return null;
-}
-
 function startAction(obj) {
   const sim = state.sim;
   if (!obj.action) return;
@@ -345,40 +357,70 @@ function gameLoop(ts) {
   requestAnimationFrame(gameLoop);
 }
 
-/* ---------- Rendering ---------- */
-const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
+/* ---------- Rendering (isometric 3D) ---------- */
+const ISO_TW = 52; // tile diamond full width
+const ISO_TH = 26; // tile diamond full height
+const ISO_TOP_MARGIN = 95; // room above the grid for tall furniture / the sim
+const ISO_SIDE_PAD = 26;
 
-function tileToPx(t) { return t * TILE; }
+function isoX(tx, ty) { return (tx - ty) * (ISO_TW / 2); }
+function isoY(tx, ty) { return (tx + ty) * (ISO_TH / 2); }
+
+const ISO_MIN_X = isoX(0, ROWS - 1);
+const ISO_MAX_X = isoX(COLS - 1, 0);
+const ISO_MIN_Y = isoY(0, 0);
+const ISO_MAX_Y = isoY(COLS - 1, ROWS - 1);
+const ORIGIN_X = -ISO_MIN_X + ISO_SIDE_PAD + ISO_TW / 2;
+const ORIGIN_Y = -ISO_MIN_Y + ISO_TOP_MARGIN;
+const CANVAS_W = Math.ceil(ISO_MAX_X - ISO_MIN_X + ISO_TW + ISO_SIDE_PAD * 2);
+const CANVAS_H = Math.ceil(ISO_MAX_Y - ISO_MIN_Y + ISO_TOP_MARGIN + ISO_TH + 30);
+
+function project(tx, ty) { return { x: ORIGIN_X + isoX(tx, ty), y: ORIGIN_Y + isoY(tx, ty) }; }
+
+function zoneColorAt(tx, ty) {
+  for (const z of ZONES) {
+    if (tx >= z.x0 && tx <= z.x1 && ty >= z.y0 && ty <= z.y1) return z.color;
+  }
+  return "#cccccc";
+}
+
+function shade(hex, factor) {
+  const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+  return `rgb(${Math.round(r * factor)},${Math.round(g * factor)},${Math.round(b * factor)})`;
+}
+
+const canvas = document.getElementById("canvas");
+canvas.width = CANVAS_W;
+canvas.height = CANVAS_H;
+const ctx = canvas.getContext("2d");
 
 function render() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  for (const z of ZONES) {
-    ctx.fillStyle = z.color;
-    ctx.fillRect(tileToPx(z.x0), tileToPx(z.y0), tileToPx(z.x1 - z.x0 + 1), tileToPx(z.y1 - z.y0 + 1));
+  const items = [];
+  for (let ty = 0; ty < ROWS; ty++) {
+    for (let tx = 0; tx < COLS; tx++) {
+      const color = zoneColorAt(tx, ty);
+      items.push({ depth: tx + ty, draw: () => drawFloorTile(tx, ty, color) });
+    }
   }
-
-  ctx.strokeStyle = "rgba(0,0,0,0.08)";
-  ctx.lineWidth = 1;
-  for (let x = 0; x <= COLS; x++) {
-    ctx.beginPath(); ctx.moveTo(tileToPx(x), 0); ctx.lineTo(tileToPx(x), tileToPx(ROWS)); ctx.stroke();
+  for (const f of state.furniture) {
+    const v = VISUALS[f.type] || VISUALS.default;
+    items.push({ depth: f.x + f.y + 0.5, draw: () => drawIsoObj(f, v) });
   }
-  for (let y = 0; y <= ROWS; y++) {
-    ctx.beginPath(); ctx.moveTo(0, tileToPx(y)); ctx.lineTo(tileToPx(COLS), tileToPx(y)); ctx.stroke();
-  }
-
-  ctx.strokeStyle = state.sim ? "#33413a" : "#33413a";
-  ctx.lineWidth = 4;
-  ctx.strokeRect(1, 1, tileToPx(12) - 2, tileToPx(9) - 2);
-
-  for (const f of state.furniture) drawObj(f);
   for (const s of state.slots) {
-    if (s.item) drawObj({ x: s.x, y: s.y, icon: s.item.icon, label: s.item.label });
-    else drawEmptySlot(s);
+    if (s.item) {
+      const v = VISUALS[s.item.type] || VISUALS.default;
+      items.push({ depth: s.x + s.y + 0.5, draw: () => drawIsoObj({ x: s.x, y: s.y, icon: s.item.icon }, v) });
+    } else {
+      items.push({ depth: s.x + s.y + 0.4, draw: () => drawEmptySlot(s) });
+    }
   }
-
-  if (state.sim) drawSim(state.sim);
+  if (state.sim) {
+    items.push({ depth: state.sim.x + state.sim.y + 0.6, draw: () => drawSim(state.sim) });
+  }
+  items.sort((a, b) => a.depth - b.depth);
+  for (const it of items) it.draw();
 
   const hour = Math.floor(state.minutes / 60);
   if (hour >= 21 || hour < 6) {
@@ -388,60 +430,120 @@ function render() {
   }
 }
 
-function drawObj(f) {
-  const px = tileToPx(f.x), py = tileToPx(f.y);
-  ctx.fillStyle = "#ffffffcc";
-  ctx.fillRect(px + 3, py + 3, TILE - 6, TILE - 6);
-  ctx.strokeStyle = "#33413a";
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(px + 3, py + 3, TILE - 6, TILE - 6);
-  ctx.font = "22px sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(f.icon, px + TILE / 2, py + TILE / 2 - 2);
-  if (state.selectedObj && state.selectedObj.x === f.x && state.selectedObj.y === f.y) {
-    ctx.strokeStyle = "#ff6f59";
-    ctx.lineWidth = 3;
-    ctx.strokeRect(px + 2, py + 2, TILE - 4, TILE - 4);
+function drawFloorTile(tx, ty, color) {
+  const { x: cx, y: cy } = project(tx, ty);
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - ISO_TH / 2);
+  ctx.lineTo(cx + ISO_TW / 2, cy);
+  ctx.lineTo(cx, cy + ISO_TH / 2);
+  ctx.lineTo(cx - ISO_TW / 2, cy);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.strokeStyle = "rgba(0,0,0,0.10)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+}
+
+function drawIsoObj(obj, v) {
+  const { x: cx, y: cy } = project(obj.x, obj.y);
+  const topY = cy - v.h;
+  const W = { x: cx - ISO_TW / 2, y: cy }, E = { x: cx + ISO_TW / 2, y: cy };
+  const S = { x: cx, y: cy + ISO_TH / 2 }, N = { x: cx, y: cy - ISO_TH / 2 };
+  const Wt = { x: W.x, y: topY }, Et = { x: E.x, y: topY };
+  const St = { x: S.x, y: topY + ISO_TH / 2 }, Nt = { x: N.x, y: topY - ISO_TH / 2 };
+
+  ctx.beginPath();
+  ctx.moveTo(W.x, W.y); ctx.lineTo(S.x, S.y); ctx.lineTo(St.x, St.y); ctx.lineTo(Wt.x, Wt.y); ctx.closePath();
+  ctx.fillStyle = shade(v.color, 0.68); ctx.fill();
+  ctx.strokeStyle = "rgba(0,0,0,0.25)"; ctx.lineWidth = 1; ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(S.x, S.y); ctx.lineTo(E.x, E.y); ctx.lineTo(Et.x, Et.y); ctx.lineTo(St.x, St.y); ctx.closePath();
+  ctx.fillStyle = shade(v.color, 0.48); ctx.fill(); ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(Nt.x, Nt.y); ctx.lineTo(Et.x, Et.y); ctx.lineTo(St.x, St.y); ctx.lineTo(Wt.x, Wt.y); ctx.closePath();
+  ctx.fillStyle = v.color; ctx.fill();
+  const sel = state.selectedObj && state.selectedObj.x === obj.x && state.selectedObj.y === obj.y;
+  ctx.strokeStyle = sel ? "#ff6f59" : "rgba(0,0,0,0.3)";
+  ctx.lineWidth = sel ? 3 : 1;
+  ctx.stroke();
+
+  if (obj.icon) {
+    ctx.font = "20px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(obj.icon, cx, topY - 1);
   }
 }
 
 function drawEmptySlot(s) {
-  const px = tileToPx(s.x), py = tileToPx(s.y);
-  ctx.strokeStyle = "rgba(50,50,50,0.5)";
+  const { x: cx, y: cy } = project(s.x, s.y);
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - ISO_TH / 2 + 4);
+  ctx.lineTo(cx + ISO_TW / 2 - 4, cy);
+  ctx.lineTo(cx, cy + ISO_TH / 2 - 4);
+  ctx.lineTo(cx - ISO_TW / 2 + 4, cy);
+  ctx.closePath();
   ctx.setLineDash([4, 3]);
+  ctx.strokeStyle = "rgba(50,50,50,0.55)";
   ctx.lineWidth = 2;
-  ctx.strokeRect(px + 4, py + 4, TILE - 8, TILE - 8);
+  ctx.stroke();
   ctx.setLineDash([]);
-  ctx.font = "16px sans-serif";
-  ctx.fillStyle = "rgba(50,50,50,0.6)";
+  ctx.font = "15px sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText("🛒", px + TILE / 2, py + TILE / 2);
+  ctx.fillStyle = "rgba(50,50,50,0.65)";
+  ctx.fillText("🛒", cx, cy);
 }
 
 function drawSim(sim) {
-  const px = tileToPx(sim.x) + TILE / 2, py = tileToPx(sim.y) + TILE / 2;
+  const { x: cx, y: cy } = project(sim.x, sim.y);
+
   ctx.beginPath();
-  ctx.arc(px, py, 14, 0, Math.PI * 2);
+  ctx.ellipse(cx, cy, ISO_TW * 0.2, ISO_TH * 0.32, 0, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(0,0,0,0.28)";
+  ctx.fill();
+
+  const bodyH = 30, bw = 15;
+  ctx.beginPath();
+  ctx.moveTo(cx - bw / 2, cy - 2);
+  ctx.lineTo(cx - bw / 2, cy - bodyH + bw / 2);
+  ctx.arc(cx, cy - bodyH + bw / 2, bw / 2, Math.PI, 0);
+  ctx.lineTo(cx + bw / 2, cy - 2);
+  ctx.closePath();
   ctx.fillStyle = sim.color;
   ctx.fill();
   ctx.strokeStyle = "#22302a";
   ctx.lineWidth = 2;
   ctx.stroke();
-  ctx.font = "14px sans-serif";
+
+  const headCy = cy - bodyH - 6;
+  ctx.beginPath();
+  ctx.arc(cx, headCy, 9, 0, Math.PI * 2);
+  ctx.fillStyle = "#ffe0bd";
+  ctx.fill();
+  ctx.strokeStyle = "#22302a";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.font = "11px sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillStyle = "#fff";
-  ctx.fillText("🙂", px, py);
+  ctx.fillText("🙂", cx, headCy + 1);
 
   if (sim.action) {
     const frac = Math.min(1, sim.action.elapsed / sim.action.duration);
+    const by = headCy - 18;
     ctx.fillStyle = "rgba(0,0,0,0.5)";
-    ctx.fillRect(px - 16, py - 26, 32, 5);
+    ctx.fillRect(cx - 16, by, 32, 5);
     ctx.fillStyle = "#4caf50";
-    ctx.fillRect(px - 16, py - 26, 32 * frac, 5);
+    ctx.fillRect(cx - 16, by, 32 * frac, 5);
   }
+}
+
+function pointInDiamond(px, py, cx, cy, hw, hh) {
+  return Math.abs(px - cx) / hw + Math.abs(py - cy) / hh <= 1;
 }
 
 /* ---------- UI ---------- */
@@ -561,6 +663,10 @@ function positionPanel(panel, px, py) {
 }
 
 /* ---------- Input ---------- */
+function slotAsObj(s) {
+  return { id: s.id, type: s.item.type, label: s.item.label, icon: s.item.icon, x: s.x, y: s.y, action: s.item.action };
+}
+
 canvas.addEventListener("click", (e) => {
   if (!state.sim) return;
   const rect = canvas.getBoundingClientRect();
@@ -568,18 +674,37 @@ canvas.addEventListener("click", (e) => {
   const scaleY = canvas.height / rect.height;
   const mx = (e.clientX - rect.left) * scaleX;
   const my = (e.clientY - rect.top) * scaleY;
-  const tx = Math.floor(mx / TILE), ty = Math.floor(my / TILE);
 
-  const obj = getObjAt(tx, ty);
-  if (obj) {
-    openActionPanel(obj, mx, my);
+  // Tier 1: precise hit-test against each object's elevated top face.
+  let hitObj = null, hitDepth = -Infinity;
+  const tryHit = (ox, oy, h, obj) => {
+    const { x: cx, y: cy } = project(ox, oy);
+    if (pointInDiamond(mx, my, cx, cy - h, ISO_TW / 2, ISO_TH / 2)) {
+      const d = ox + oy;
+      if (d > hitDepth) { hitDepth = d; hitObj = obj; }
+    }
+  };
+  for (const f of state.furniture) tryHit(f.x, f.y, (VISUALS[f.type] || VISUALS.default).h, f);
+  for (const s of state.slots) if (s.item) tryHit(s.x, s.y, (VISUALS[s.item.type] || VISUALS.default).h, slotAsObj(s));
+
+  if (hitObj) { openActionPanel(hitObj, mx, my); return; }
+
+  // Tier 2: fall back to the floor-plane tile under the cursor.
+  const rx = mx - ORIGIN_X, ry = my - ORIGIN_Y;
+  const txf = (rx / (ISO_TW / 2) + ry / (ISO_TH / 2)) / 2;
+  const tyf = (ry / (ISO_TH / 2) - rx / (ISO_TW / 2)) / 2;
+  const tx = Math.round(txf), ty = Math.round(tyf);
+
+  const furnHere = state.furniture.find((f) => f.x === tx && f.y === ty);
+  if (furnHere) { openActionPanel(furnHere, mx, my); return; }
+
+  const slotHere = state.slots.find((s) => s.x === tx && s.y === ty);
+  if (slotHere) {
+    if (slotHere.item) openActionPanel(slotAsObj(slotHere), mx, my);
+    else openShopPanel(slotHere, mx, my);
     return;
   }
-  const slot = state.slots.find((s) => s.x === tx && s.y === ty && !s.item);
-  if (slot) {
-    openShopPanel(slot, mx, my);
-    return;
-  }
+
   closePanels();
   if (isWalkable(tx, ty)) {
     const sxr = Math.round(state.sim.x), syr = Math.round(state.sim.y);
