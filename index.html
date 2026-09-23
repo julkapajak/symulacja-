@@ -2,11 +2,18 @@
 <html lang="pl">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>SimLife — gra w stylu The Sims</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+
+<div id="gameArea">
+  <canvas id="canvas"></canvas>
+  <div id="actionPanel" class="hidden"></div>
+  <div id="shopPanel" class="hidden"></div>
+  <div id="toastContainer"></div>
+</div>
 
 <div id="topbar">
   <div class="topbar-group">
@@ -24,54 +31,43 @@
   </div>
   <div class="topbar-group">
     <span id="money">💰 0 zł</span>
+    <button id="buildBtn" title="Tryb budowania">🔨</button>
     <button id="saveBtn" title="Zapisz grę">💾</button>
     <button id="newGameBtn" title="Nowa gra">🆕</button>
   </div>
 </div>
 
-<div id="gameArea">
-  <canvas id="canvas" width="704" height="396"></canvas>
-  <div id="actionPanel" class="hidden"></div>
-  <div id="shopPanel" class="hidden"></div>
-  <div id="toastContainer"></div>
-</div>
+<div id="bottomHud">
+  <div id="needsPanel" class="hudCard">
+    <div class="hudCardTitle">Potrzeby</div>
+    <div class="need" data-need="hunger">
+      <span class="need-icon">🍗</span>
+      <div class="need-bar"><div class="need-fill"></div></div>
+    </div>
+    <div class="need" data-need="energy">
+      <span class="need-icon">⚡</span>
+      <div class="need-bar"><div class="need-fill"></div></div>
+    </div>
+    <div class="need" data-need="hygiene">
+      <span class="need-icon">🧼</span>
+      <div class="need-bar"><div class="need-fill"></div></div>
+    </div>
+    <div class="need" data-need="fun">
+      <span class="need-icon">🎉</span>
+      <div class="need-bar"><div class="need-fill"></div></div>
+    </div>
+    <div class="need" data-need="social">
+      <span class="need-icon">💬</span>
+      <div class="need-bar"><div class="need-fill"></div></div>
+    </div>
+    <div class="need" data-need="bladder">
+      <span class="need-icon">🚻</span>
+      <div class="need-bar"><div class="need-fill"></div></div>
+    </div>
+  </div>
 
-<div id="needsPanel">
-  <div class="need" data-need="hunger">
-    <span class="need-icon">🍗</span>
-    <div class="need-bar"><div class="need-fill"></div></div>
-    <span class="need-label">Głód</span>
-  </div>
-  <div class="need" data-need="energy">
-    <span class="need-icon">⚡</span>
-    <div class="need-bar"><div class="need-fill"></div></div>
-    <span class="need-label">Energia</span>
-  </div>
-  <div class="need" data-need="hygiene">
-    <span class="need-icon">🧼</span>
-    <div class="need-bar"><div class="need-fill"></div></div>
-    <span class="need-label">Higiena</span>
-  </div>
-  <div class="need" data-need="fun">
-    <span class="need-icon">🎉</span>
-    <div class="need-bar"><div class="need-fill"></div></div>
-    <span class="need-label">Zabawa</span>
-  </div>
-  <div class="need" data-need="social">
-    <span class="need-icon">💬</span>
-    <div class="need-bar"><div class="need-fill"></div></div>
-    <span class="need-label">Kontakty</span>
-  </div>
-  <div class="need" data-need="bladder">
-    <span class="need-icon">🚻</span>
-    <div class="need-bar"><div class="need-fill"></div></div>
-    <span class="need-label">Pęcherz</span>
-  </div>
-</div>
-
-<div id="careerPanel">
-  <div id="jobTitle">💼 Stażysta (poziom 1/6)</div>
-  <div class="skills">
+  <div id="careerPanel" class="hudCard">
+    <div class="hudCardTitle" id="jobTitle">💼 Stażysta</div>
     <div class="skill" data-skill="cooking">
       <span class="skill-icon">🍳</span>
       <div class="skill-bar"><div class="skill-fill"></div></div>
@@ -86,6 +82,18 @@
       <span class="skill-icon">🗣️</span>
       <div class="skill-bar"><div class="skill-fill"></div></div>
       <span class="skill-level">0/10</span>
+    </div>
+  </div>
+
+  <div id="partnerPanel" class="hudCard hidden">
+    <div class="hudCardTitle"><span id="partnerName">—</span> <span id="partnerMood">😐</span></div>
+    <div class="need" data-pneed="hunger"><span class="need-icon">🍗</span><div class="need-bar"><div class="need-fill"></div></div></div>
+    <div class="need" data-pneed="energy"><span class="need-icon">⚡</span><div class="need-bar"><div class="need-fill"></div></div></div>
+    <div class="need" data-pneed="fun"><span class="need-icon">🎉</span><div class="need-bar"><div class="need-fill"></div></div></div>
+    <div class="relBar">
+      <span class="relIcon">💗</span>
+      <div class="need-bar"><div id="relFill" class="need-fill"></div></div>
+      <span id="relLabel">Znajomi</span>
     </div>
   </div>
 </div>
@@ -104,7 +112,31 @@
       <span>Cecha charakteru</span>
       <div id="ccTraits" class="traits"></div>
     </div>
-    <button id="ccConfirm">Zacznij grać</button>
+    <button id="ccConfirm">Dalej</button>
+  </div>
+</div>
+
+<div id="partnerCreator" class="modalOverlay hidden">
+  <div class="modal">
+    <h2>Współlokator?</h2>
+    <p class="modalHint">Możesz zamieszkać z kimś — będzie żył swoim życiem obok Ciebie.</p>
+    <label>Imię
+      <input id="pcName" type="text" maxlength="16" placeholder="np. Robin" />
+    </label>
+    <div class="ccRow">
+      <span>Kolor</span>
+      <div id="pcColors" class="swatches"></div>
+    </div>
+    <button id="pcConfirm">Dodaj współlokatora</button>
+    <button id="pcSkip" class="secondaryBtn">Zamieszkam sam/sama</button>
+  </div>
+</div>
+
+<div id="itemPicker" class="modalOverlay hidden">
+  <div class="modal wide">
+    <h2>Postaw mebel</h2>
+    <div id="itemPickerGrid" class="itemGrid"></div>
+    <button id="itemPickerClose" class="secondaryBtn">Zamknij</button>
   </div>
 </div>
 

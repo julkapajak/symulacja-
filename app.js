@@ -1,11 +1,10 @@
 "use strict";
 
-/* ---------- Constants ---------- */
-const TILE = 44;
+/* ---------- Grid constants ---------- */
 const COLS = 16;
 const ROWS = 9;
 const BASE_MIN_MS = 150; // real ms per game minute at 1x speed
-const SAVE_KEY = "simlife_save_v1";
+const SAVE_KEY = "simlife_save_v2";
 
 const ZONES = [
   { x0: 0, y0: 0, x1: 3, y1: 3, color: "#e8d2a8", name: "kuchnia", floorType: "tile" },
@@ -63,6 +62,7 @@ function edgeBlocked(ax, ay, bx, by) {
   return false;
 }
 
+/* ---------- Needs / traits / skills / career ---------- */
 const NEED_KEYS = ["hunger", "energy", "hygiene", "fun", "social", "bladder"];
 const NEED_META = {
   hunger: { icon: "🍗", label: "Głód", decay: 0.055 },
@@ -80,7 +80,7 @@ const TRAITS = {
   imprezowicz: { name: "Imprezowicz", desc: "Zabawa spada szybciej, ale rośnie mocniej.", mods: { fun: 1.5, funGain: 1.3 } },
 };
 
-const COLORS = ["#ff6f59", "#3fa796", "#f6c445", "#7b6cf6", "#e85ea0"];
+const COLORS = ["#ff6f59", "#3fa796", "#f6c445", "#7b6cf6", "#e85ea0", "#4fb0e8"];
 
 const SKILL_META = {
   cooking: { icon: "🍳", label: "Gotowanie" },
@@ -93,107 +93,87 @@ const JOB_TITLES = ["Stażysta", "Pracownik", "Specjalista", "Kierownik", "Dyrek
 const JOB_BASE_SALARY = [80, 120, 170, 230, 300, 400];
 const SHIFTS_PER_PROMOTION = 3;
 
-/* ---------- Furniture definitions ---------- */
-// action: { label, need, gain, duration(min), sideEffects:{need:delta}, isWork }
-function makeFurniture(id, type, label, icon, x, y, action) {
-  return { id, type, label, icon, x, y, action, purchased: true };
-}
-
-const FURNITURE = [
-  makeFurniture("fridge", "fridge", "Lodówka", "🍽️", 1, 1, {
-    label: "Zjedz", need: "hunger", gain: 60, duration: 20, side: {}, skill: "cooking", skillGain: 0.12,
-  }),
-  makeFurniture("sink", "sink", "Umywalka", "🚰", 2, 1, {
-    label: "Umyj ręce", need: "hygiene", gain: 20, duration: 8, side: {},
-  }),
-  makeFurniture("toilet", "toilet", "Toaleta", "🚽", 1, 5, {
-    label: "Skorzystaj z toalety", need: "bladder", gain: 100, duration: 6, side: {},
-  }),
-  makeFurniture("shower", "shower", "Prysznic", "🚿", 1, 7, {
-    label: "Weź prysznic", need: "hygiene", gain: 100, duration: 15, side: { energy: 5 },
-  }),
-  makeFurniture("bed", "bed", "Łóżko", "🛏️", 5, 2, {
-    label: "Śpij", need: "energy", gain: 100, duration: 240, side: { hygiene: -10, bladder: -15 },
-  }),
-  makeFurniture("bookshelf", "bookshelf", "Regał", "📚", 7, 1, {
-    label: "Czytaj", need: "fun", gain: 25, duration: 30, side: {},
-  }),
-  makeFurniture("sofa", "sofa", "Sofa", "🛋️", 9, 3, {
-    label: "Odpoczywaj", need: "fun", gain: 20, duration: 40, side: { energy: 10 },
-  }),
-  makeFurniture("tv", "tv", "Telewizor", "📺", 10, 3, {
-    label: "Oglądaj TV", need: "fun", gain: 35, duration: 60, side: { energy: -5 },
-  }),
-  makeFurniture("computer", "computer", "Komputer", "💻", 9, 6, {
-    label: "Graj na komputerze", need: "fun", gain: 30, duration: 55, side: { energy: -10 },
-  }),
-  makeFurniture("car", "car", "Praca (Samochód)", "🚗", 13, 3, {
-    label: "Jedź do pracy", isWork: true, duration: 480,
-    side: { energy: -30, fun: -10, social: -10, hygiene: -15, hunger: -20 },
-  }),
-  makeFurniture("tree", "tree", "Drzewo", "🌳", 14, 1, null),
-];
-
-const SHOP_ITEMS = [
-  { type: "plant", label: "Roślina", icon: "🪴", cost: 150, action: { label: "Podziwiaj roślinę", need: "fun", gain: 12, duration: 10, side: {} } },
-  { type: "piano", label: "Pianino", icon: "🎹", cost: 400, action: { label: "Zagraj na pianinie", need: "fun", gain: 40, duration: 50, side: {} } },
-  { type: "gym", label: "Siłownia", icon: "🏋️", cost: 450, action: { label: "Ćwicz", need: "fun", gain: 25, duration: 45, side: { energy: -10 }, skill: "fitness", skillGain: 0.25 } },
-  { type: "firepit", label: "Ognisko", icon: "🔥", cost: 200, action: { label: "Usiądź przy ognisku", need: "social", gain: 30, duration: 40, side: { fun: 20 }, skill: "charisma", skillGain: 0.2 } },
-];
-
-const EMPTY_SLOTS = [
-  { id: "slot1", x: 6, y: 6 },
-  { id: "slot2", x: 11, y: 6 },
-  { id: "slot3", x: 13, y: 6 },
-];
-
-/* ---------- 3D (isometric) visuals: extrusion height + base color per type ---------- */
-const VISUALS = {
-  fridge: { h: 40, color: "#f2f4f4" },
-  sink: { h: 20, color: "#dceff5" },
-  toilet: { h: 22, color: "#ffffff" },
-  shower: { h: 34, color: "#cdeaf7" },
-  bed: { h: 16, color: "#e3d3f5" },
-  bookshelf: { h: 42, color: "#b3814f" },
-  sofa: { h: 22, color: "#efa08a" },
-  tv: { h: 30, color: "#33393f" },
-  computer: { h: 26, color: "#7a828c" },
-  car: { h: 26, color: "#e35b52" },
-  tree: { h: 36, color: "#5fae5f" },
-  plant: { h: 18, color: "#6fae55" },
-  piano: { h: 34, color: "#262626" },
-  gym: { h: 26, color: "#9aa3ad" },
-  firepit: { h: 14, color: "#d97a3d" },
-  default: { h: 24, color: "#dddddd" },
+/* ---------- Item catalog (furniture types: visuals + action + cost) ---------- */
+const ITEM_CATALOG = {
+  fridge: { label: "Lodówka", icon: "🍽️", cost: 300, h: 40, color: "#f2f4f4",
+    action: { label: "Zjedz", need: "hunger", gain: 60, duration: 20, side: {}, skill: "cooking", skillGain: 0.12 } },
+  sink: { label: "Umywalka", icon: "🚰", cost: 120, h: 20, color: "#dceff5",
+    action: { label: "Umyj ręce", need: "hygiene", gain: 20, duration: 8, side: {} } },
+  toilet: { label: "Toaleta", icon: "🚽", cost: 250, h: 22, color: "#ffffff",
+    action: { label: "Skorzystaj z toalety", need: "bladder", gain: 100, duration: 6, side: {} } },
+  shower: { label: "Prysznic", icon: "🚿", cost: 350, h: 34, color: "#cdeaf7",
+    action: { label: "Weź prysznic", need: "hygiene", gain: 100, duration: 15, side: { energy: 5 } } },
+  bed: { label: "Łóżko", icon: "🛏️", cost: 400, h: 16, color: "#e3d3f5",
+    action: { label: "Śpij", need: "energy", gain: 100, duration: 240, side: { hygiene: -10, bladder: -15 } } },
+  bookshelf: { label: "Regał", icon: "📚", cost: 220, h: 42, color: "#b3814f",
+    action: { label: "Czytaj", need: "fun", gain: 25, duration: 30, side: {} } },
+  sofa: { label: "Sofa", icon: "🛋️", cost: 280, h: 22, color: "#efa08a",
+    action: { label: "Odpoczywaj", need: "fun", gain: 20, duration: 40, side: { energy: 10 } } },
+  tv: { label: "Telewizor", icon: "📺", cost: 500, h: 30, color: "#33393f",
+    action: { label: "Oglądaj TV", need: "fun", gain: 35, duration: 60, side: { energy: -5 } } },
+  computer: { label: "Komputer", icon: "💻", cost: 450, h: 26, color: "#7a828c",
+    action: { label: "Graj na komputerze", need: "fun", gain: 30, duration: 55, side: { energy: -10 } } },
+  plant: { label: "Roślina", icon: "🪴", cost: 150, h: 18, color: "#6fae55",
+    action: { label: "Podziwiaj roślinę", need: "fun", gain: 12, duration: 10, side: {} } },
+  piano: { label: "Pianino", icon: "🎹", cost: 400, h: 34, color: "#262626",
+    action: { label: "Zagraj na pianinie", need: "fun", gain: 40, duration: 50, side: {} } },
+  gym: { label: "Siłownia", icon: "🏋️", cost: 450, h: 26, color: "#9aa3ad",
+    action: { label: "Ćwicz", need: "fun", gain: 25, duration: 45, side: { energy: -10 }, skill: "fitness", skillGain: 0.25 } },
+  firepit: { label: "Ognisko", icon: "🔥", cost: 200, h: 14, color: "#d97a3d",
+    action: { label: "Usiądź przy ognisku", need: "social", gain: 30, duration: 40, side: { fun: 20 }, skill: "charisma", skillGain: 0.2 } },
+  car: { label: "Praca (Samochód)", icon: "🚗", cost: 0, h: 26, color: "#e35b52",
+    action: { label: "Jedź do pracy", isWork: true, duration: 480, side: { energy: -30, fun: -10, social: -10, hygiene: -15, hunger: -20 } }, fixed: true },
+  tree: { label: "Drzewo", icon: "🌳", cost: 60, h: 36, color: "#5fae5f", action: null },
 };
+
+function makeItem(id, type, x, y) { return { id, type, x, y }; }
+const STARTER_ITEMS = [
+  makeItem("fridge", "fridge", 1, 1),
+  makeItem("sink", "sink", 2, 1),
+  makeItem("toilet", "toilet", 1, 5),
+  makeItem("shower", "shower", 1, 7),
+  makeItem("bed", "bed", 5, 2),
+  makeItem("bookshelf", "bookshelf", 7, 1),
+  makeItem("sofa", "sofa", 9, 3),
+  makeItem("tv", "tv", 10, 3),
+  makeItem("computer", "computer", 9, 6),
+  makeItem("car", "car", 13, 3),
+  makeItem("tree", "tree", 14, 1),
+];
 
 /* ---------- Game state ---------- */
 const state = {
   sim: null,
+  partner: null,
+  relationship: 30,
   money: 500,
   day: 1,
-  minutes: 8 * 60, // minutes since midnight
+  minutes: 8 * 60,
   speed: 1,
-  furniture: FURNITURE.map((f) => ({ ...f })),
-  slots: EMPTY_SLOTS.map((s) => ({ ...s, item: null })),
+  items: STARTER_ITEMS.map((i) => ({ ...i })),
+  buildMode: false,
+  movingItemId: null,
+  pendingPlaceTile: null,
   lastFrame: 0,
   accumMs: 0,
   selectedObj: null,
+  itemCounter: 1,
 };
 
+function itemAt(x, y) {
+  return state.items.find((i) => i.x === x && i.y === y) || null;
+}
 function occupiedTiles() {
   const set = new Set();
-  for (const f of state.furniture) set.add(f.x + "," + f.y);
-  for (const s of state.slots) if (s.item) set.add(s.x + "," + s.y);
+  for (const i of state.items) set.add(i.x + "," + i.y);
   return set;
 }
-
 function isWalkable(x, y) {
   if (x < 0 || y < 0 || x >= COLS || y >= ROWS) return false;
   return !occupiedTiles().has(x + "," + y);
 }
 
-/* ---------- Pathfinding (BFS) ---------- */
+/* ---------- Pathfinding (BFS, wall-aware) ---------- */
 function bfsFrom(sx, sy) {
   const dist = new Map();
   const prev = new Map();
@@ -246,20 +226,30 @@ function findPathToNeighbor(sx, sy, tx, ty) {
   return reconstructPath(prev, key, sxr, syr, best[0], best[1]);
 }
 
+function findPathToTile(sx, sy, tx, ty) {
+  const sxr = Math.round(sx), syr = Math.round(sy);
+  const { dist, prev, key } = bfsFrom(sxr, syr);
+  if (!dist.has(tx + "," + ty)) return null;
+  if (sxr === tx && syr === ty) return [];
+  return reconstructPath(prev, key, sxr, syr, tx, ty);
+}
+
 /* ---------- Sim ---------- */
 function createSim(name, color, traitKey) {
   return {
     name, color, trait: traitKey,
-    x: 3, y: 3, // tile coords (float for animation)
+    x: 3, y: 3,
     path: [],
-    speed: 4.2, // tiles per second
+    speed: 4.2,
     needs: { hunger: 85, energy: 85, hygiene: 85, fun: 85, social: 85, bladder: 85 },
     skills: { cooking: 0, fitness: 0, charisma: 0 },
     jobLevel: 0,
     shiftsWorked: 0,
-    action: null, // { targetId, label, need, gain, duration, side, elapsed, isWork }
+    action: null,
+    pendingAction: null,
     atWork: false,
     walkPhase: 0,
+    _warned: {},
   };
 }
 
@@ -268,6 +258,8 @@ function traitMod(trait, key, def = 1) {
   if (!t || !t.mods || t.mods[key] === undefined) return def;
   return t.mods[key];
 }
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
 /* ---------- Toasts ---------- */
 function toast(msg) {
@@ -280,32 +272,35 @@ function toast(msg) {
 }
 
 /* ---------- Actions ---------- */
-function startAction(obj) {
-  const sim = state.sim;
-  if (!obj.action) return;
-  const path = findPathToNeighbor(sim.x, sim.y, obj.x, obj.y);
+function catalogOf(item) { return ITEM_CATALOG[item.type]; }
+
+function startAction(sim, item) {
+  const cat = catalogOf(item);
+  if (!cat || !cat.action) return;
+  const path = findPathToNeighbor(sim.x, sim.y, item.x, item.y);
   if (path === null) { toast("Nie można dojść do tego obiektu."); return; }
   sim.path = path;
-  sim.pendingAction = obj;
+  sim.pendingAction = item;
   closePanels();
 }
 
-function beginPendingActionIfArrived() {
-  const sim = state.sim;
+function beginPendingActionIfArrived(sim) {
   if (!sim.pendingAction) return;
   if (sim.path.length > 0) return;
-  const obj = sim.pendingAction;
+  const item = sim.pendingAction;
   sim.pendingAction = null;
-  const a = obj.action;
+  const cat = catalogOf(item);
+  if (!cat || !cat.action) return;
+  const a = cat.action;
   if (a.isWork) {
     const hour = Math.floor(state.minutes / 60) % 24;
     if (hour < 8 || hour >= 18) {
-      toast("Praca dostępna tylko w godzinach 8:00–18:00.");
+      if (sim === state.sim) toast("Praca dostępna tylko w godzinach 8:00–18:00.");
       return;
     }
   }
   sim.action = {
-    objId: obj.id, label: a.label, need: a.need, gain: a.gain,
+    itemId: item.id, label: a.label, need: a.need, gain: a.gain,
     duration: a.duration, side: a.side || {}, elapsed: 0, isWork: !!a.isWork,
     skill: a.skill || null, skillGain: a.skillGain || 0,
   };
@@ -313,8 +308,7 @@ function beginPendingActionIfArrived() {
   toast(`${sim.name}: ${a.label}...`);
 }
 
-function cancelAction() {
-  const sim = state.sim;
+function cancelAction(sim) {
   if (sim.action) {
     if (sim.action.isWork) toast(`${sim.name} przerwał pracę.`);
     sim.action = null;
@@ -325,8 +319,7 @@ function cancelAction() {
   closePanels();
 }
 
-function finishAction() {
-  const sim = state.sim;
+function finishAction(sim) {
   const a = sim.action;
   if (!a) return;
   if (a.isWork) {
@@ -347,16 +340,15 @@ function finishAction() {
     const before = sim.skills[a.skill];
     sim.skills[a.skill] = clamp(before + a.skillGain, 0, SKILL_MAX);
     if (Math.floor(sim.skills[a.skill]) > Math.floor(before)) {
-      toast(`📈 ${SKILL_META[a.skill].label} wzrosło do poziomu ${Math.floor(sim.skills[a.skill])}!`);
+      toast(`📈 ${sim.name}: ${SKILL_META[a.skill].label} → poziom ${Math.floor(sim.skills[a.skill])}!`);
     }
   }
   sim.action = null;
   sim.atWork = false;
 }
 
-/* ---------- Update loop ---------- */
-function applyNeedDecay(minutesPassed) {
-  const sim = state.sim;
+/* ---------- Per-sim update loop ---------- */
+function applyNeedDecay(sim, minutesPassed) {
   for (const k of NEED_KEYS) {
     let mod = traitMod(sim.trait, k, 1);
     if (k === "energy") mod *= 1 - sim.skills.fitness * 0.02;
@@ -365,58 +357,47 @@ function applyNeedDecay(minutesPassed) {
   }
 }
 
-function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
-
-function tickMinutes(n) {
-  state.minutes += n;
-  while (state.minutes >= 1440) { state.minutes -= 1440; state.day += 1; }
-  applyNeedDecay(n);
-
-  const sim = state.sim;
-  if (sim.action) {
-    sim.action.elapsed += n;
-    const frac = Math.min(1, n / sim.action.duration);
-    if (sim.action.need) {
-      const skillMult = sim.action.skill ? 1 + sim.skills[sim.action.skill] * 0.05 : 1;
-      sim.needs[sim.action.need] = clamp(
-        sim.needs[sim.action.need] + sim.action.gain * frac * traitMod(sim.trait, "funGain", 1) * skillMult, 0, 100
-      );
-    }
-    for (const [k, delta] of Object.entries(sim.action.side)) {
-      sim.needs[k] = clamp(sim.needs[k] + delta * frac, 0, 100);
-    }
-    if (sim.action.elapsed >= sim.action.duration) finishAction();
+function progressAction(sim, n) {
+  if (!sim.action) return;
+  sim.action.elapsed += n;
+  const frac = Math.min(1, n / sim.action.duration);
+  if (sim.action.need) {
+    const skillMult = sim.action.skill ? 1 + sim.skills[sim.action.skill] * 0.05 : 1;
+    sim.needs[sim.action.need] = clamp(
+      sim.needs[sim.action.need] + sim.action.gain * frac * traitMod(sim.trait, "funGain", 1) * skillMult, 0, 100
+    );
   }
+  for (const [k, delta] of Object.entries(sim.action.side)) {
+    sim.needs[k] = clamp(sim.needs[k] + delta * frac, 0, 100);
+  }
+  if (sim.action.elapsed >= sim.action.duration) finishAction(sim);
+}
 
+function checkWarnings(sim) {
   for (const k of NEED_KEYS) {
-    if (sim.needs[k] <= 12 && !sim._warned?.[k]) {
-      sim._warned = sim._warned || {};
+    if (sim.needs[k] <= 12 && !sim._warned[k]) {
       sim._warned[k] = true;
-      toast(`⚠️ ${NEED_META[k].label} Sima jest krytycznie niska!`);
-    } else if (sim.needs[k] > 25 && sim._warned?.[k]) {
+      toast(`⚠️ ${NEED_META[k].label} (${sim.name}) jest krytycznie niska!`);
+    } else if (sim.needs[k] > 25 && sim._warned[k]) {
       sim._warned[k] = false;
     }
   }
-
-  if (!sim.action && !sim.pendingAction && sim.path.length === 0) {
-    autoFulfillCriticalNeed();
-  }
 }
 
-function autoFulfillCriticalNeed() {
-  const sim = state.sim;
-  const critical = NEED_KEYS.filter((k) => sim.needs[k] <= 15).sort((a, b) => sim.needs[a] - sim.needs[b]);
-  if (critical.length === 0) return;
-  const need = critical[0];
-  const candidates = [];
-  for (const f of state.furniture) {
-    if (f.action && !f.action.isWork && f.action.need === need) candidates.push(f);
+function autonomyTick(sim, proactive) {
+  if (!sim) return;
+  if (sim.action || sim.pendingAction || sim.path.length > 0) return;
+  const threshold = proactive ? 55 : 15;
+  const needy = NEED_KEYS.filter((k) => sim.needs[k] <= threshold).sort((a, b) => sim.needs[a] - sim.needs[b]);
+  let need = needy[0];
+  if (!need && proactive && Math.random() < 0.12) {
+    need = Math.random() < 0.5 ? "fun" : "social";
   }
-  for (const s of state.slots) {
-    if (s.item && s.item.action && s.item.action.need === need) {
-      candidates.push({ id: s.id, type: s.item.type, label: s.item.label, icon: s.item.icon, x: s.x, y: s.y, action: s.item.action });
-    }
-  }
+  if (!need) return;
+  const candidates = state.items.filter((i) => {
+    const cat = catalogOf(i);
+    return cat && cat.action && !cat.action.isWork && cat.action.need === need;
+  });
   if (candidates.length === 0) return;
   candidates.sort((a, b) => (Math.abs(a.x - sim.x) + Math.abs(a.y - sim.y)) - (Math.abs(b.x - sim.x) + Math.abs(b.y - sim.y)));
   const target = candidates[0];
@@ -424,11 +405,11 @@ function autoFulfillCriticalNeed() {
   if (path === null) return;
   sim.path = path;
   sim.pendingAction = target;
-  toast(`${sim.name} sam idzie zaspokoić potrzebę: ${NEED_META[need].label}`);
+  if (!proactive) toast(`${sim.name} sam idzie zaspokoić potrzebę: ${NEED_META[need].label}`);
 }
 
-function moveSimAlongPath(dtSec) {
-  const sim = state.sim;
+function moveSimAlongPath(sim, dtSec) {
+  if (!sim) return;
   if (sim.path.length === 0) { sim.walkPhase = 0; return; }
   const target = sim.path[0];
   const dx = target.x - sim.x, dy = target.y - sim.y;
@@ -444,19 +425,40 @@ function moveSimAlongPath(dtSec) {
   sim.walkPhase += dtSec * 9;
 }
 
+/* ---------- Global tick / loop ---------- */
+function tickMinutes(n) {
+  state.minutes += n;
+  while (state.minutes >= 1440) { state.minutes -= 1440; state.day += 1; }
+
+  applyNeedDecay(state.sim, n);
+  progressAction(state.sim, n);
+  checkWarnings(state.sim);
+  autonomyTick(state.sim, false);
+
+  if (state.partner) {
+    applyNeedDecay(state.partner, n);
+    progressAction(state.partner, n);
+    checkWarnings(state.partner);
+    autonomyTick(state.partner, true);
+  }
+}
+
 function gameLoop(ts) {
   if (!state.lastFrame) state.lastFrame = ts;
   const dtMs = ts - state.lastFrame;
   state.lastFrame = ts;
 
   if (state.sim && state.speed > 0) {
-    moveSimAlongPath(dtMs / 1000);
-    beginPendingActionIfArrived();
+    moveSimAlongPath(state.sim, dtMs / 1000);
+    beginPendingActionIfArrived(state.sim);
+    if (state.partner) {
+      moveSimAlongPath(state.partner, dtMs / 1000);
+      beginPendingActionIfArrived(state.partner);
+    }
 
     state.accumMs += dtMs * state.speed;
-    const minuteMs = BASE_MIN_MS;
-    while (state.accumMs >= minuteMs) {
-      state.accumMs -= minuteMs;
+    while (state.accumMs >= BASE_MIN_MS) {
+      state.accumMs -= BASE_MIN_MS;
       tickMinutes(1);
     }
   }
@@ -466,10 +468,10 @@ function gameLoop(ts) {
   requestAnimationFrame(gameLoop);
 }
 
-/* ---------- Rendering (isometric 3D) ---------- */
-const ISO_TW = 52; // tile diamond full width
-const ISO_TH = 26; // tile diamond full height
-const ISO_TOP_MARGIN = WALL_H + 32; // room above the grid for walls / tall furniture / the sim
+/* ---------- Rendering geometry helpers ---------- */
+const ISO_TW = 52;
+const ISO_TH = 26;
+const ISO_TOP_MARGIN = WALL_H + 32;
 const ISO_SIDE_PAD = 26;
 
 function isoX(tx, ty) { return (tx - ty) * (ISO_TW / 2); }
@@ -490,7 +492,6 @@ function shade(hex, factor) {
   const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
   return `rgb(${Math.round(r * factor)},${Math.round(g * factor)},${Math.round(b * factor)})`;
 }
-
 function lerpPt(a, b, t) { return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }; }
 function facePoint(b0, b1, t0, t1, u, v) {
   const bx = b0.x + (b1.x - b0.x) * u, by = b0.y + (b1.y - b0.y) * u;
@@ -502,6 +503,9 @@ function bilerp(N, E, S, W, u, v) {
   const y = N.y * (1 - u) * (1 - v) + E.y * u * (1 - v) + S.y * u * v + W.y * (1 - u) * v;
   return { x, y };
 }
+function pointInDiamond(px, py, cx, cy, hw, hh) {
+  return Math.abs(px - cx) / hw + Math.abs(py - cy) / hh <= 1;
+}
 
 function mulberry32(seed) {
   let t = seed >>> 0;
@@ -512,7 +516,6 @@ function mulberry32(seed) {
     return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
   };
 }
-
 function hexToRgb(hex) {
   return { r: parseInt(hex.slice(1, 3), 16), g: parseInt(hex.slice(3, 5), 16), b: parseInt(hex.slice(5, 7), 16) };
 }
@@ -555,40 +558,67 @@ function warmAmount(hour) {
   return Math.max(dawn, dusk);
 }
 
+/* ---------- Canvas + fullscreen fit transform ---------- */
 const canvas = document.getElementById("canvas");
-canvas.width = CANVAS_W;
-canvas.height = CANVAS_H;
 const ctx = canvas.getContext("2d");
+let dpr = 1, fitScale = 1, offCssX = 0, offCssY = 0;
 
+function resizeCanvas() {
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const topEl = document.getElementById("topbar");
+  const botEl = document.getElementById("bottomHud");
+  const topH = topEl ? topEl.getBoundingClientRect().height : 0;
+  const botH = botEl ? botEl.getBoundingClientRect().height : 0;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const availW = Math.max(200, vw - 24);
+  const availH = Math.max(200, vh - topH - botH - 20);
+  const rawScale = Math.min(availW / CANVAS_W, availH / CANVAS_H);
+  fitScale = Math.max(0.5, Math.min(rawScale, 2.6));
+  const dispW = CANVAS_W * fitScale, dispH = CANVAS_H * fitScale;
+  offCssX = (vw - dispW) / 2;
+  offCssY = topH + Math.max(0, (vh - topH - botH - dispH) / 2);
+  canvas.width = Math.max(1, Math.round(vw * dpr));
+  canvas.height = Math.max(1, Math.round(vh * dpr));
+  canvas.style.width = vw + "px";
+  canvas.style.height = vh + "px";
+}
+window.addEventListener("resize", resizeCanvas);
+window.addEventListener("orientationchange", resizeCanvas);
+
+/* ---------- Render ---------- */
 function render() {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = "#05070f";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.setTransform(dpr * fitScale, 0, 0, dpr * fitScale, dpr * offCssX, dpr * offCssY);
+
   const hourFloat = state.minutes / 60;
   const sky = skyColors(hourFloat);
-  const skyGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  const skyGrad = ctx.createLinearGradient(0, 0, 0, CANVAS_H);
   skyGrad.addColorStop(0, sky.top);
   skyGrad.addColorStop(1, sky.bottom);
   ctx.fillStyle = skyGrad;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
   const night = nightAmount(hourFloat);
   if (night > 0) {
     const rnd = mulberry32(42);
     ctx.fillStyle = `rgba(255,255,255,${0.85 * night})`;
-    for (let i = 0; i < 40; i++) {
-      const sx = rnd() * canvas.width, sy = rnd() * (ISO_TOP_MARGIN * 0.85);
+    for (let i = 0; i < 50; i++) {
+      const sx = rnd() * CANVAS_W, sy = rnd() * (ISO_TOP_MARGIN * 0.85);
       ctx.beginPath(); ctx.arc(sx, sy, rnd() * 1.2 + 0.3, 0, Math.PI * 2); ctx.fill();
     }
   }
   const isDay = hourFloat >= 6 && hourFloat <= 18;
   const discColor = isDay ? "#fff3c4" : "#e8ecf5";
   const glowColor = isDay ? "rgba(255,240,180,0.35)" : "rgba(220,225,245,0.22)";
-  const sunX = 30 + (hourFloat / 24) * (canvas.width - 60);
+  const sunX = 30 + (hourFloat / 24) * (CANVAS_W - 60);
   const sunY = 20 + 25 * Math.pow((hourFloat - 12) / 12, 2);
   const glow = ctx.createRadialGradient(sunX, sunY, 2, sunX, sunY, 28);
   glow.addColorStop(0, glowColor); glow.addColorStop(1, "rgba(255,255,255,0)");
   ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(sunX, sunY, 28, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = discColor; ctx.beginPath(); ctx.arc(sunX, sunY, 9, 0, Math.PI * 2); ctx.fill();
 
-  // Pass 1: floor tiles.
   const floorItems = [];
   for (let ty = 0; ty < ROWS; ty++) {
     for (let tx = 0; tx < COLS; tx++) {
@@ -599,9 +629,6 @@ function render() {
   floorItems.sort((a, b) => a.depth - b.depth);
   for (const it of floorItems) it.draw();
 
-  // Pass 2: walls. Drawn as their own pass (always behind furniture/the sim) because a
-  // tall wall panel can visually bleed into a lower-depth neighbor tile's screen space,
-  // which would otherwise wrongly paint over furniture or the sim standing there.
   const wallItems = WALLS.map((w) => ({
     depth: w.tx + w.ty,
     draw: () => {
@@ -613,34 +640,29 @@ function render() {
   wallItems.sort((a, b) => a.depth - b.depth);
   for (const it of wallItems) it.draw();
 
-  // Pass 3: furniture, shop slots and the sim, depth-sorted among themselves.
   const objItems = [];
-  for (const f of state.furniture) {
-    const v = VISUALS[f.type] || VISUALS.default;
-    objItems.push({ depth: f.x + f.y + 0.5, draw: () => drawIsoObj(f, v) });
+  for (const item of state.items) {
+    const cat = catalogOf(item);
+    objItems.push({ depth: item.x + item.y + 0.5, draw: () => drawIsoObj(item, cat) });
   }
-  for (const s of state.slots) {
-    if (s.item) {
-      const v = VISUALS[s.item.type] || VISUALS.default;
-      objItems.push({ depth: s.x + s.y + 0.5, draw: () => drawIsoObj({ x: s.x, y: s.y, icon: s.item.icon, type: s.item.type }, v) });
-    } else {
-      objItems.push({ depth: s.x + s.y + 0.4, draw: () => drawEmptySlot(s) });
-    }
-  }
-  if (state.sim) {
-    objItems.push({ depth: state.sim.x + state.sim.y + 0.6, draw: () => drawSim(state.sim) });
-  }
+  if (state.sim) objItems.push({ depth: state.sim.x + state.sim.y + 0.6, draw: () => drawSim(state.sim) });
+  if (state.partner) objItems.push({ depth: state.partner.x + state.partner.y + 0.62, draw: () => drawSim(state.partner) });
   objItems.sort((a, b) => a.depth - b.depth);
   for (const it of objItems) it.draw();
 
   if (night > 0) {
     ctx.fillStyle = `rgba(15,20,55,${night * 0.38})`;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
   }
   const warm = warmAmount(hourFloat);
   if (warm > 0) {
     ctx.fillStyle = `rgba(255,140,60,${warm * 0.15})`;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+  }
+  if (state.buildMode) {
+    ctx.strokeStyle = "rgba(255,122,89,0.55)";
+    ctx.lineWidth = 6;
+    ctx.strokeRect(3, 3, CANVAS_W - 6, CANVAS_H - 6);
   }
 }
 
@@ -679,6 +701,14 @@ function drawFloorTile(tx, ty, zone) {
       const px = cx + u * (ISO_TW / 2) * 0.85, py = cy + v * (ISO_TH / 2) * 0.85;
       ctx.beginPath(); ctx.arc(px, py, 1.3, 0, Math.PI * 2); ctx.fill();
     }
+  }
+
+  if (state.buildMode && !occupiedTiles().has(tx + "," + ty)) {
+    ctx.strokeStyle = "rgba(255,255,255,0.28)";
+    ctx.setLineDash([3, 3]);
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(N.x, N.y); ctx.lineTo(E.x, E.y); ctx.lineTo(S.x, S.y); ctx.lineTo(W.x, W.y); ctx.closePath(); ctx.stroke();
+    ctx.setLineDash([]);
   }
 
   ctx.strokeStyle = "rgba(0,0,0,0.10)";
@@ -754,9 +784,9 @@ function drawDoorFrame(tx, ty, edge) {
   ctx.fillStyle = "#8a6b45"; ctx.fill(); ctx.strokeStyle = "rgba(0,0,0,0.25)"; ctx.stroke();
 }
 
-function drawIsoObj(obj, v) {
-  const { x: cx, y: cy } = project(obj.x, obj.y);
-  const topY = cy - v.h;
+function drawIsoObj(item, cat) {
+  const { x: cx, y: cy } = project(item.x, item.y);
+  const topY = cy - cat.h;
   const W = { x: cx - ISO_TW / 2, y: cy }, E = { x: cx + ISO_TW / 2, y: cy };
   const S = { x: cx, y: cy + ISO_TH / 2 }, N = { x: cx, y: cy - ISO_TH / 2 };
   const Wt = { x: W.x, y: topY }, Et = { x: E.x, y: topY };
@@ -764,34 +794,37 @@ function drawIsoObj(obj, v) {
 
   ctx.beginPath();
   ctx.moveTo(W.x, W.y); ctx.lineTo(S.x, S.y); ctx.lineTo(St.x, St.y); ctx.lineTo(Wt.x, Wt.y); ctx.closePath();
-  ctx.fillStyle = shade(v.color, 0.68); ctx.fill();
+  ctx.fillStyle = shade(cat.color, 0.68); ctx.fill();
   ctx.strokeStyle = "rgba(0,0,0,0.25)"; ctx.lineWidth = 1; ctx.stroke();
 
   ctx.beginPath();
   ctx.moveTo(S.x, S.y); ctx.lineTo(E.x, E.y); ctx.lineTo(Et.x, Et.y); ctx.lineTo(St.x, St.y); ctx.closePath();
-  ctx.fillStyle = shade(v.color, 0.48); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = shade(cat.color, 0.48); ctx.fill(); ctx.stroke();
 
-  drawFurnitureDetail(obj, v, { N, E, S, W, Nt, Et, St, Wt });
+  drawFurnitureDetail(item.type, { N, E, S, W, Nt, Et, St, Wt });
 
   ctx.beginPath();
   ctx.moveTo(Nt.x, Nt.y); ctx.lineTo(Et.x, Et.y); ctx.lineTo(St.x, St.y); ctx.lineTo(Wt.x, Wt.y); ctx.closePath();
-  ctx.fillStyle = v.color; ctx.fill();
-  const sel = state.selectedObj && state.selectedObj.x === obj.x && state.selectedObj.y === obj.y;
-  ctx.strokeStyle = sel ? "#ff6f59" : "rgba(0,0,0,0.3)";
-  ctx.lineWidth = sel ? 3 : 1;
+  ctx.fillStyle = cat.color; ctx.fill();
+  const sel = state.selectedObj && state.selectedObj.x === item.x && state.selectedObj.y === item.y;
+  const moving = state.movingItemId === item.id;
+  ctx.strokeStyle = moving ? "#3fd0c9" : sel ? "#ff6f59" : "rgba(0,0,0,0.3)";
+  ctx.lineWidth = moving || sel ? 3 : 1;
   ctx.stroke();
 
-  if (obj.icon) {
+  if (cat.icon) {
     ctx.font = "20px sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(obj.icon, cx, topY - 1);
+    ctx.globalAlpha = moving ? 0.55 : 1;
+    ctx.fillText(cat.icon, cx, topY - 1);
+    ctx.globalAlpha = 1;
   }
 }
 
-function drawFurnitureDetail(obj, v, g) {
+function drawFurnitureDetail(type, g) {
   const { N, E, S, W, Nt, Et, St, Wt } = g;
-  switch (obj.type) {
+  switch (type) {
     case "bed": {
       const p0 = bilerp(Nt, Et, St, Wt, 0.15, 0.5), p1 = bilerp(Nt, Et, St, Wt, 0.85, 0.5);
       const p2 = bilerp(Nt, Et, St, Wt, 0.85, 0.95), p3 = bilerp(Nt, Et, St, Wt, 0.15, 0.95);
@@ -846,26 +879,6 @@ function drawFurnitureDetail(obj, v, g) {
   }
 }
 
-function drawEmptySlot(s) {
-  const { x: cx, y: cy } = project(s.x, s.y);
-  ctx.beginPath();
-  ctx.moveTo(cx, cy - ISO_TH / 2 + 4);
-  ctx.lineTo(cx + ISO_TW / 2 - 4, cy);
-  ctx.lineTo(cx, cy + ISO_TH / 2 - 4);
-  ctx.lineTo(cx - ISO_TW / 2 + 4, cy);
-  ctx.closePath();
-  ctx.setLineDash([4, 3]);
-  ctx.strokeStyle = "rgba(50,50,50,0.55)";
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.font = "15px sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillStyle = "rgba(50,50,50,0.65)";
-  ctx.fillText("🛒", cx, cy);
-}
-
 function drawSim(sim) {
   const { x: cx, y: cy } = project(sim.x, sim.y);
 
@@ -915,7 +928,7 @@ function drawSim(sim) {
 
   ctx.beginPath();
   ctx.arc(cx, headCy - 1, 8.8, Math.PI * 1.05, Math.PI * 1.95);
-  ctx.strokeStyle = "#4a3527";
+  ctx.strokeStyle = sim === state.partner ? "#2b2118" : "#4a3527";
   ctx.lineWidth = 4;
   ctx.stroke();
 
@@ -933,10 +946,6 @@ function drawSim(sim) {
   }
 }
 
-function pointInDiamond(px, py, cx, cy, hw, hh) {
-  return Math.abs(px - cx) / hw + Math.abs(py - cy) / hh <= 1;
-}
-
 /* ---------- UI ---------- */
 function moodFromNeeds(sim) {
   const avg = NEED_KEYS.reduce((s, k) => s + sim.needs[k], 0) / NEED_KEYS.length;
@@ -945,6 +954,12 @@ function moodFromNeeds(sim) {
   if (avg >= 40) return "😐";
   if (avg >= 20) return "😟";
   return "😫";
+}
+function relationshipLabel(v) {
+  if (v < 20) return "Nieznajomi";
+  if (v < 50) return "Znajomi";
+  if (v < 80) return "Bliscy";
+  return "Zakochani";
 }
 
 function updateUI() {
@@ -959,62 +974,84 @@ function updateUI() {
   document.getElementById("money").textContent = `💰 ${state.money} zł`;
 
   for (const k of NEED_KEYS) {
-    const el = document.querySelector(`.need[data-need="${k}"] .need-fill`);
+    const el = document.querySelector(`#needsPanel .need[data-need="${k}"] .need-fill`);
     const v = sim.needs[k];
     el.style.width = v + "%";
     el.style.background = v > 60 ? "#4caf50" : v > 30 ? "#f6c445" : "#e35b5b";
   }
 
-  document.getElementById("jobTitle").textContent = `💼 ${JOB_TITLES[sim.jobLevel]} (poziom ${sim.jobLevel + 1}/${JOB_TITLES.length})`;
+  document.getElementById("jobTitle").textContent = `💼 ${JOB_TITLES[sim.jobLevel]} (${sim.jobLevel + 1}/${JOB_TITLES.length})`;
   for (const k of Object.keys(SKILL_META)) {
     const el = document.querySelector(`.skill[data-skill="${k}"] .skill-fill`);
     const lvl = sim.skills[k];
     el.style.width = (lvl / SKILL_MAX) * 100 + "%";
-    const label = document.querySelector(`.skill[data-skill="${k}"] .skill-level`);
-    label.textContent = Math.floor(lvl) + "/" + SKILL_MAX;
+    document.querySelector(`.skill[data-skill="${k}"] .skill-level`).textContent = Math.floor(lvl) + "/" + SKILL_MAX;
   }
+
+  const partnerPanel = document.getElementById("partnerPanel");
+  if (state.partner) {
+    partnerPanel.classList.remove("hidden");
+    document.getElementById("partnerName").textContent = state.partner.name;
+    document.getElementById("partnerMood").textContent = moodFromNeeds(state.partner);
+    for (const k of ["hunger", "energy", "fun"]) {
+      const el = document.querySelector(`#partnerPanel .need[data-pneed="${k}"] .need-fill`);
+      const v = state.partner.needs[k];
+      el.style.width = v + "%";
+      el.style.background = v > 60 ? "#4caf50" : v > 30 ? "#f6c445" : "#e35b5b";
+    }
+    document.getElementById("relFill").style.width = state.relationship + "%";
+    document.getElementById("relLabel").textContent = relationshipLabel(state.relationship);
+  } else {
+    partnerPanel.classList.add("hidden");
+  }
+
+  document.getElementById("buildBtn").classList.toggle("active", state.buildMode);
 }
 
-/* ---------- Panels (action / shop) ---------- */
+/* ---------- Panels ---------- */
 function closePanels() {
   document.getElementById("actionPanel").classList.add("hidden");
   document.getElementById("shopPanel").classList.add("hidden");
   state.selectedObj = null;
 }
 
-function openActionPanel(obj, px, py) {
-  closePanels();
-  state.selectedObj = obj;
-  const panel = document.getElementById("actionPanel");
+function panelHeader(panel, titleText) {
   panel.innerHTML = "";
   const closeBtn = document.createElement("button");
   closeBtn.className = "panelClose";
   closeBtn.textContent = "✕";
   closeBtn.onclick = closePanels;
   panel.appendChild(closeBtn);
-
   const h = document.createElement("h4");
-  h.textContent = obj.label;
+  h.textContent = titleText;
   panel.appendChild(h);
+}
 
-  if (obj.action) {
+function openActionPanel(item, px, py) {
+  closePanels();
+  state.selectedObj = item;
+  const cat = catalogOf(item);
+  const panel = document.getElementById("actionPanel");
+  panelHeader(panel, cat.label);
+
+  if (cat.action) {
     const btn = document.createElement("button");
     btn.className = "panelBtn";
-    btn.textContent = obj.action.label;
-    btn.onclick = () => startAction(obj);
+    btn.textContent = cat.action.label;
+    btn.onclick = () => startAction(state.sim, item);
     panel.appendChild(btn);
   } else {
     const p = document.createElement("div");
-    p.style.fontSize = "0.8em";
+    p.className = "panelHint";
     p.textContent = "Ten obiekt jest dekoracyjny.";
     panel.appendChild(p);
   }
 
-  if (state.sim.action && state.sim.action.objId === obj.id) {
+  if (state.sim.action && state.sim.action.itemId === item.id) {
     const cancel = document.createElement("button");
     cancel.className = "panelBtn";
     cancel.textContent = "Anuluj czynność";
-    cancel.onclick = cancelAction;
+    cancel.onclick = () => cancelAction(state.sim);
     panel.appendChild(cancel);
   }
 
@@ -1022,30 +1059,76 @@ function openActionPanel(obj, px, py) {
   panel.classList.remove("hidden");
 }
 
-function openShopPanel(slot, px, py) {
+function openManagePanel(item, px, py) {
   closePanels();
+  const cat = catalogOf(item);
   const panel = document.getElementById("shopPanel");
-  panel.innerHTML = "";
-  const closeBtn = document.createElement("button");
-  closeBtn.className = "panelClose";
-  closeBtn.textContent = "✕";
-  closeBtn.onclick = closePanels;
-  panel.appendChild(closeBtn);
+  panelHeader(panel, `🔨 ${cat.label}`);
 
-  const h = document.createElement("h4");
-  h.textContent = "Kup mebel";
-  panel.appendChild(h);
+  if (cat.fixed) {
+    const p = document.createElement("div");
+    p.className = "panelHint";
+    p.textContent = "Tego obiektu nie można przenieść ani sprzedać.";
+    panel.appendChild(p);
+  } else {
+    const moveBtn = document.createElement("button");
+    moveBtn.className = "panelBtn";
+    moveBtn.textContent = "↔️ Przenieś";
+    moveBtn.onclick = () => {
+      state.movingItemId = item.id;
+      closePanels();
+      toast("Kliknij puste miejsce, aby przenieść mebel.");
+    };
+    panel.appendChild(moveBtn);
 
-  for (const item of SHOP_ITEMS) {
+    const refund = Math.round(cat.cost * 0.5);
+    const sellBtn = document.createElement("button");
+    sellBtn.className = "panelBtn";
+    sellBtn.textContent = `💰 Sprzedaj (+${refund} zł)`;
+    sellBtn.onclick = () => {
+      state.items = state.items.filter((i) => i.id !== item.id);
+      state.money += refund;
+      toast(`Sprzedano: ${cat.label} (+${refund} zł)`);
+      closePanels();
+    };
+    panel.appendChild(sellBtn);
+  }
+
+  positionPanel(panel, px, py);
+  panel.classList.remove("hidden");
+}
+
+function openSocialPanel(px, py) {
+  closePanels();
+  const sim = state.sim, partner = state.partner;
+  const adjacent = Math.abs(Math.round(sim.x) - Math.round(partner.x)) + Math.abs(Math.round(sim.y) - Math.round(partner.y)) <= 1;
+  const panel = document.getElementById("actionPanel");
+  panelHeader(panel, `${partner.name} · ${relationshipLabel(state.relationship)}`);
+
+  if (!adjacent) {
+    const p = document.createElement("div");
+    p.className = "panelHint";
+    p.textContent = "Podejdź bliżej, aby wejść w interakcję.";
+    panel.appendChild(p);
+  }
+
+  const interactions = [
+    { label: "💬 Porozmawiaj", min: 0, social: 15, fun: 0, rel: 3 },
+    { label: "🤗 Przytul", min: 20, social: 12, fun: 12, rel: 5 },
+    { label: "💋 Pocałuj", min: 50, social: 18, fun: 18, rel: 8 },
+  ];
+  for (const it of interactions) {
     const btn = document.createElement("button");
     btn.className = "panelBtn";
-    btn.textContent = `${item.icon} ${item.label} — ${item.cost} zł`;
-    btn.disabled = state.money < item.cost;
+    btn.textContent = it.label + (state.relationship < it.min ? ` (wymaga: ${relationshipLabel(it.min)})` : "");
+    btn.disabled = !adjacent || state.relationship < it.min;
     btn.onclick = () => {
-      if (state.money < item.cost) return;
-      state.money -= item.cost;
-      slot.item = { type: item.type, label: item.label, icon: item.icon, action: item.action };
-      toast(`Kupiono: ${item.label}!`);
+      sim.needs.social = clamp(sim.needs.social + it.social, 0, 100);
+      partner.needs.social = clamp(partner.needs.social + it.social, 0, 100);
+      sim.needs.fun = clamp(sim.needs.fun + it.fun, 0, 100);
+      partner.needs.fun = clamp(partner.needs.fun + it.fun, 0, 100);
+      state.relationship = clamp(state.relationship + it.rel, 0, 100);
+      toast(`${sim.name} i ${partner.name}: ${it.label}`);
       closePanels();
     };
     panel.appendChild(btn);
@@ -1056,62 +1139,107 @@ function openShopPanel(slot, px, py) {
 }
 
 function positionPanel(panel, px, py) {
-  const areaW = canvas.width;
-  let left = px + 20, top = py;
-  panel.style.left = Math.min(left, areaW - 180) + "px";
-  panel.style.top = Math.max(top - 40, 4) + "px";
+  panel.style.left = Math.min(Math.max(px + 16, 8), window.innerWidth - 200) + "px";
+  panel.style.top = Math.min(Math.max(py - 30, 8), window.innerHeight - 160) + "px";
+}
+
+/* ---------- Item picker (build mode: place new item) ---------- */
+function openItemPicker(tx, ty) {
+  state.pendingPlaceTile = { x: tx, y: ty };
+  const grid = document.getElementById("itemPickerGrid");
+  grid.innerHTML = "";
+  for (const [type, cat] of Object.entries(ITEM_CATALOG)) {
+    if (cat.fixed) continue;
+    const card = document.createElement("button");
+    card.className = "itemCard";
+    card.disabled = state.money < cat.cost;
+    card.innerHTML = `<span class="itemIcon">${cat.icon}</span>${cat.label}<span class="itemCost">${cat.cost} zł</span>`;
+    card.onclick = () => {
+      if (state.money < cat.cost) return;
+      state.money -= cat.cost;
+      const id = `item_${state.itemCounter++}`;
+      state.items.push(makeItem(id, type, tx, ty));
+      toast(`Postawiono: ${cat.label}`);
+      document.getElementById("itemPicker").classList.add("hidden");
+    };
+    grid.appendChild(card);
+  }
+  document.getElementById("itemPicker").classList.remove("hidden");
 }
 
 /* ---------- Input ---------- */
-function slotAsObj(s) {
-  return { id: s.id, type: s.item.type, label: s.item.label, icon: s.item.icon, x: s.x, y: s.y, action: s.item.action };
+function screenToNative(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  const relX = clientX - rect.left, relY = clientY - rect.top;
+  return { nx: (relX - offCssX) / fitScale, ny: (relY - offCssY) / fitScale, cssX: relX, cssY: relY };
 }
 
 canvas.addEventListener("click", (e) => {
   if (!state.sim) return;
-  const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / rect.width;
-  const scaleY = canvas.height / rect.height;
-  const mx = (e.clientX - rect.left) * scaleX;
-  const my = (e.clientY - rect.top) * scaleY;
+  const { nx, ny, cssX, cssY } = screenToNative(e.clientX, e.clientY);
 
-  // Tier 1: precise hit-test against each object's elevated top face.
-  let hitObj = null, hitDepth = -Infinity;
-  const tryHit = (ox, oy, h, obj) => {
-    const { x: cx, y: cy } = project(ox, oy);
-    if (pointInDiamond(mx, my, cx, cy - h, ISO_TW / 2, ISO_TH / 2)) {
-      const d = ox + oy;
-      if (d > hitDepth) { hitDepth = d; hitObj = obj; }
-    }
-  };
-  for (const f of state.furniture) tryHit(f.x, f.y, (VISUALS[f.type] || VISUALS.default).h, f);
-  for (const s of state.slots) if (s.item) tryHit(s.x, s.y, (VISUALS[s.item.type] || VISUALS.default).h, slotAsObj(s));
-
-  if (hitObj) { openActionPanel(hitObj, mx, my); return; }
-
-  // Tier 2: fall back to the floor-plane tile under the cursor.
-  const rx = mx - ORIGIN_X, ry = my - ORIGIN_Y;
+  const rx = nx - ORIGIN_X, ry = ny - ORIGIN_Y;
   const txf = (rx / (ISO_TW / 2) + ry / (ISO_TH / 2)) / 2;
   const tyf = (ry / (ISO_TH / 2) - rx / (ISO_TW / 2)) / 2;
   const tx = Math.round(txf), ty = Math.round(tyf);
 
-  const furnHere = state.furniture.find((f) => f.x === tx && f.y === ty);
-  if (furnHere) { openActionPanel(furnHere, mx, my); return; }
+  // Mid-move: this click chooses the drop tile for a build-mode "move" in progress.
+  if (state.buildMode && state.movingItemId) {
+    const moving = state.items.find((i) => i.id === state.movingItemId);
+    if (!moving) { state.movingItemId = null; return; }
+    if (tx === moving.x && ty === moving.y) return;
+    if (itemAt(tx, ty) || tx < 0 || ty < 0 || tx >= COLS || ty >= ROWS) {
+      toast("To miejsce jest zajęte.");
+      return;
+    }
+    moving.x = tx; moving.y = ty;
+    state.movingItemId = null;
+    toast("Mebel przeniesiony.");
+    return;
+  }
 
-  const slotHere = state.slots.find((s) => s.x === tx && s.y === ty);
-  if (slotHere) {
-    if (slotHere.item) openActionPanel(slotAsObj(slotHere), mx, my);
-    else openShopPanel(slotHere, mx, my);
+  // Tier 1: precise hit-test against each item's / sim's elevated silhouette.
+  let hitObj = null, hitDepth = -Infinity;
+  const tryHit = (ox, oy, h, hw, hh, obj) => {
+    const { x: cx, y: cy } = project(ox, oy);
+    if (pointInDiamond(nx, ny, cx, cy - h, hw, hh)) {
+      const d = ox + oy;
+      if (d > hitDepth) { hitDepth = d; hitObj = obj; }
+    }
+  };
+  for (const item of state.items) tryHit(item.x, item.y, catalogOf(item).h, ISO_TW / 2, ISO_TH / 2, { __item: item });
+  if (!state.buildMode && state.partner) {
+    tryHit(state.partner.x, state.partner.y, 40, ISO_TW * 0.34, ISO_TH * 0.6, { __partner: true });
+  }
+
+  if (hitObj) {
+    if (hitObj.__partner) { openSocialPanel(cssX, cssY); return; }
+    if (state.buildMode) openManagePanel(hitObj.__item, cssX, cssY);
+    else openActionPanel(hitObj.__item, cssX, cssY);
+    return;
+  }
+
+  // Tier 2: floor-plane fallback.
+  const itemHere = itemAt(tx, ty);
+  if (itemHere) {
+    if (state.buildMode) openManagePanel(itemHere, cssX, cssY);
+    else openActionPanel(itemHere, cssX, cssY);
+    return;
+  }
+  if (!state.buildMode && state.partner && Math.round(state.partner.x) === tx && Math.round(state.partner.y) === ty) {
+    openSocialPanel(cssX, cssY);
     return;
   }
 
   closePanels();
+  if (state.buildMode) {
+    if (isWalkable(tx, ty) && tx >= 0 && ty >= 0 && tx < COLS && ty < ROWS) openItemPicker(tx, ty);
+    return;
+  }
   if (isWalkable(tx, ty)) {
-    const sxr = Math.round(state.sim.x), syr = Math.round(state.sim.y);
-    const { dist, prev, key } = bfsFrom(sxr, syr);
-    if (dist.has(tx + "," + ty)) {
-      const path = reconstructPath(prev, key, sxr, syr, tx, ty);
-      state.sim.path = path || [];
+    const path = findPathToTile(state.sim.x, state.sim.y, tx, ty);
+    if (path !== null) {
+      state.sim.path = path;
       state.sim.pendingAction = null;
     }
   }
@@ -1125,53 +1253,76 @@ document.getElementById("speedControls").addEventListener("click", (e) => {
   btn.classList.add("active");
 });
 
+document.getElementById("buildBtn").addEventListener("click", () => {
+  state.buildMode = !state.buildMode;
+  state.movingItemId = null;
+  closePanels();
+  toast(state.buildMode ? "🔨 Tryb budowania włączony" : "Tryb budowania wyłączony");
+});
+
+document.getElementById("itemPickerClose").addEventListener("click", () => {
+  document.getElementById("itemPicker").classList.add("hidden");
+});
+
 document.getElementById("saveBtn").addEventListener("click", () => { saveGame(); toast("Gra zapisana."); });
 document.getElementById("newGameBtn").addEventListener("click", () => {
   if (confirm("Rozpocząć nową grę? Obecny postęp zostanie utracony.")) {
-    localStorage.removeItem(SAVE_KEY);
+    try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
     location.reload();
   }
 });
 
 /* ---------- Save / Load ---------- */
-function saveGame() {
-  const data = {
-    sim: {
-      name: state.sim.name, color: state.sim.color, trait: state.sim.trait,
-      x: state.sim.x, y: state.sim.y, needs: state.sim.needs,
-      skills: state.sim.skills, jobLevel: state.sim.jobLevel, shiftsWorked: state.sim.shiftsWorked,
-      path: state.sim.path, pendingAction: state.sim.pendingAction || null,
-      action: state.sim.action, atWork: state.sim.atWork,
-    },
-    money: state.money, day: state.day, minutes: state.minutes,
-    slots: state.slots.map((s) => ({ id: s.id, item: s.item })),
+function serializeSim(sim) {
+  return {
+    name: sim.name, color: sim.color, trait: sim.trait, x: sim.x, y: sim.y,
+    needs: sim.needs, skills: sim.skills, jobLevel: sim.jobLevel, shiftsWorked: sim.shiftsWorked,
+    path: sim.path, pendingAction: sim.pendingAction ? { id: sim.pendingAction.id } : null,
+    action: sim.action, atWork: sim.atWork,
   };
-  localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+}
+function deserializeSim(data) {
+  const sim = createSim(data.name, data.color, data.trait);
+  sim.x = data.x; sim.y = data.y;
+  sim.needs = data.needs;
+  sim.skills = data.skills || { cooking: 0, fitness: 0, charisma: 0 };
+  sim.jobLevel = data.jobLevel || 0;
+  sim.shiftsWorked = data.shiftsWorked || 0;
+  sim.path = data.path || [];
+  sim.pendingAction = data.pendingAction ? itemAt2(data.pendingAction.id) : null;
+  sim.action = data.action || null;
+  sim.atWork = !!data.atWork;
+  return sim;
+}
+function itemAt2(id) { return state.items.find((i) => i.id === id) || null; }
+
+function saveGame() {
+  try {
+    const data = {
+      sim: serializeSim(state.sim),
+      partner: state.partner ? serializeSim(state.partner) : null,
+      relationship: state.relationship,
+      money: state.money, day: state.day, minutes: state.minutes,
+      items: state.items, itemCounter: state.itemCounter,
+    };
+    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+  } catch (e) { /* storage unavailable */ }
 }
 
 function loadGame() {
-  const raw = localStorage.getItem(SAVE_KEY);
+  let raw = null;
+  try { raw = localStorage.getItem(SAVE_KEY); } catch (e) { return false; }
   if (!raw) return false;
   try {
     const data = JSON.parse(raw);
-    state.sim = createSim(data.sim.name, data.sim.color, data.sim.trait);
-    state.sim.x = data.sim.x; state.sim.y = data.sim.y;
-    state.sim.needs = data.sim.needs;
-    state.sim.skills = data.sim.skills || { cooking: 0, fitness: 0, charisma: 0 };
-    state.sim.jobLevel = data.sim.jobLevel || 0;
-    state.sim.shiftsWorked = data.sim.shiftsWorked || 0;
-    state.sim.path = data.sim.path || [];
-    state.sim.pendingAction = data.sim.pendingAction || null;
-    state.sim.action = data.sim.action || null;
-    state.sim.atWork = !!data.sim.atWork;
+    state.items = data.items || STARTER_ITEMS.map((i) => ({ ...i }));
+    state.itemCounter = data.itemCounter || 1;
+    state.sim = deserializeSim(data.sim);
+    state.partner = data.partner ? deserializeSim(data.partner) : null;
+    state.relationship = data.relationship || 30;
     state.money = data.money; state.day = data.day; state.minutes = data.minutes;
-    for (const s of state.slots) {
-      const found = data.slots.find((d) => d.id === s.id);
-      if (found) s.item = found.item;
-    }
     return true;
   } catch (e) {
-    console.error("Save load failed", e);
     return false;
   }
 }
@@ -1179,30 +1330,36 @@ function loadGame() {
 window.addEventListener("beforeunload", () => { if (state.sim) saveGame(); });
 setInterval(() => { if (state.sim) saveGame(); }, 30000);
 
-/* ---------- Character creator ---------- */
-function initCharCreator() {
-  const colorsEl = document.getElementById("ccColors");
-  let selectedColor = COLORS[0];
+/* ---------- Character creators ---------- */
+let ccSelectedColor = COLORS[0];
+let ccSelectedTrait = Object.keys(TRAITS)[0];
+let pcSelectedColor = COLORS[1];
+
+function buildSwatches(container, onPick, defaultColor) {
+  container.innerHTML = "";
   COLORS.forEach((c, i) => {
     const sw = document.createElement("div");
-    sw.className = "swatch" + (i === 0 ? " selected" : "");
+    sw.className = "swatch" + (c === defaultColor ? " selected" : "");
     sw.style.background = c;
     sw.onclick = () => {
-      selectedColor = c;
-      colorsEl.querySelectorAll(".swatch").forEach((s) => s.classList.remove("selected"));
+      onPick(c);
+      container.querySelectorAll(".swatch").forEach((s) => s.classList.remove("selected"));
       sw.classList.add("selected");
     };
-    colorsEl.appendChild(sw);
+    container.appendChild(sw);
   });
+}
+
+function initCharCreator() {
+  buildSwatches(document.getElementById("ccColors"), (c) => { ccSelectedColor = c; }, ccSelectedColor);
 
   const traitsEl = document.getElementById("ccTraits");
-  let selectedTrait = Object.keys(TRAITS)[0];
   Object.entries(TRAITS).forEach(([key, t], i) => {
     const div = document.createElement("div");
     div.className = "trait" + (i === 0 ? " selected" : "");
     div.innerHTML = `<b>${t.name}</b> — ${t.desc}`;
     div.onclick = () => {
-      selectedTrait = key;
+      ccSelectedTrait = key;
       traitsEl.querySelectorAll(".trait").forEach((d) => d.classList.remove("selected"));
       div.classList.add("selected");
     };
@@ -1211,18 +1368,41 @@ function initCharCreator() {
 
   document.getElementById("ccConfirm").addEventListener("click", () => {
     const name = document.getElementById("ccName").value.trim() || "Sim";
-    state.sim = createSim(name, selectedColor, selectedTrait);
+    state.sim = createSim(name, ccSelectedColor, ccSelectedTrait);
     document.getElementById("charCreator").classList.add("hidden");
-    toast(`Witaj, ${name}! Kliknij obiekt, aby wykonać czynność.`);
+    initPartnerCreator();
+    document.getElementById("partnerCreator").classList.remove("hidden");
   });
+}
+
+function initPartnerCreator() {
+  pcSelectedColor = COLORS.find((c) => c !== ccSelectedColor) || COLORS[1];
+  buildSwatches(document.getElementById("pcColors"), (c) => { pcSelectedColor = c; }, pcSelectedColor);
+
+  document.getElementById("pcConfirm").onclick = () => {
+    const name = document.getElementById("pcName").value.trim() || "Współlokator";
+    state.partner = createSim(name, pcSelectedColor, "towarzyski");
+    state.partner.x = 4; state.partner.y = 3;
+    document.getElementById("partnerCreator").classList.add("hidden");
+    resizeCanvas();
+    toast(`Witajcie, ${state.sim.name} i ${name}! Kliknijcie obiekt, aby wykonać czynność.`);
+  };
+  document.getElementById("pcSkip").onclick = () => {
+    document.getElementById("partnerCreator").classList.add("hidden");
+    resizeCanvas();
+    toast(`Witaj, ${state.sim.name}! Kliknij obiekt, aby wykonać czynność.`);
+  };
 }
 
 /* ---------- Boot ---------- */
 function boot() {
+  resizeCanvas();
   initCharCreator();
   if (loadGame()) {
     document.getElementById("charCreator").classList.add("hidden");
+    document.getElementById("partnerCreator").classList.add("hidden");
   }
+  resizeCanvas();
   requestAnimationFrame(gameLoop);
 }
 
