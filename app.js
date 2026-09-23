@@ -82,6 +82,17 @@ const TRAITS = {
 
 const COLORS = ["#ff6f59", "#3fa796", "#f6c445", "#7b6cf6", "#e85ea0"];
 
+const SKILL_META = {
+  cooking: { icon: "🍳", label: "Gotowanie" },
+  fitness: { icon: "💪", label: "Kondycja" },
+  charisma: { icon: "🗣️", label: "Charyzma" },
+};
+const SKILL_MAX = 10;
+
+const JOB_TITLES = ["Stażysta", "Pracownik", "Specjalista", "Kierownik", "Dyrektor", "Prezes"];
+const JOB_BASE_SALARY = [80, 120, 170, 230, 300, 400];
+const SHIFTS_PER_PROMOTION = 3;
+
 /* ---------- Furniture definitions ---------- */
 // action: { label, need, gain, duration(min), sideEffects:{need:delta}, isWork }
 function makeFurniture(id, type, label, icon, x, y, action) {
@@ -90,7 +101,7 @@ function makeFurniture(id, type, label, icon, x, y, action) {
 
 const FURNITURE = [
   makeFurniture("fridge", "fridge", "Lodówka", "🍽️", 1, 1, {
-    label: "Zjedz", need: "hunger", gain: 60, duration: 20, side: {},
+    label: "Zjedz", need: "hunger", gain: 60, duration: 20, side: {}, skill: "cooking", skillGain: 0.12,
   }),
   makeFurniture("sink", "sink", "Umywalka", "🚰", 2, 1, {
     label: "Umyj ręce", need: "hygiene", gain: 20, duration: 8, side: {},
@@ -126,8 +137,8 @@ const FURNITURE = [
 const SHOP_ITEMS = [
   { type: "plant", label: "Roślina", icon: "🪴", cost: 150, action: { label: "Podziwiaj roślinę", need: "fun", gain: 12, duration: 10, side: {} } },
   { type: "piano", label: "Pianino", icon: "🎹", cost: 400, action: { label: "Zagraj na pianinie", need: "fun", gain: 40, duration: 50, side: {} } },
-  { type: "gym", label: "Siłownia", icon: "🏋️", cost: 450, action: { label: "Ćwicz", need: "fun", gain: 25, duration: 45, side: { energy: -10 } } },
-  { type: "firepit", label: "Ognisko", icon: "🔥", cost: 200, action: { label: "Usiądź przy ognisku", need: "social", gain: 30, duration: 40, side: { fun: 20 } } },
+  { type: "gym", label: "Siłownia", icon: "🏋️", cost: 450, action: { label: "Ćwicz", need: "fun", gain: 25, duration: 45, side: { energy: -10 }, skill: "fitness", skillGain: 0.25 } },
+  { type: "firepit", label: "Ognisko", icon: "🔥", cost: 200, action: { label: "Usiądź przy ognisku", need: "social", gain: 30, duration: 40, side: { fun: 20 }, skill: "charisma", skillGain: 0.2 } },
 ];
 
 const EMPTY_SLOTS = [
@@ -243,6 +254,9 @@ function createSim(name, color, traitKey) {
     path: [],
     speed: 4.2, // tiles per second
     needs: { hunger: 85, energy: 85, hygiene: 85, fun: 85, social: 85, bladder: 85 },
+    skills: { cooking: 0, fitness: 0, charisma: 0 },
+    jobLevel: 0,
+    shiftsWorked: 0,
     action: null, // { targetId, label, need, gain, duration, side, elapsed, isWork }
     atWork: false,
     walkPhase: 0,
@@ -293,6 +307,7 @@ function beginPendingActionIfArrived() {
   sim.action = {
     objId: obj.id, label: a.label, need: a.need, gain: a.gain,
     duration: a.duration, side: a.side || {}, elapsed: 0, isWork: !!a.isWork,
+    skill: a.skill || null, skillGain: a.skillGain || 0,
   };
   sim.atWork = !!a.isWork;
   toast(`${sim.name}: ${a.label}...`);
@@ -315,12 +330,25 @@ function finishAction() {
   const a = sim.action;
   if (!a) return;
   if (a.isWork) {
-    const base = 120;
-    const pay = Math.round(base * traitMod(sim.trait, "salary"));
+    const base = JOB_BASE_SALARY[sim.jobLevel];
+    const charismaBonus = 1 + sim.skills.charisma * 0.03;
+    const pay = Math.round(base * traitMod(sim.trait, "salary") * charismaBonus);
     state.money += pay;
-    toast(`${sim.name} zarobił ${pay} zł!`);
+    sim.shiftsWorked += 1;
+    toast(`${sim.name} zarobił ${pay} zł jako ${JOB_TITLES[sim.jobLevel]}!`);
+    if (sim.jobLevel < JOB_TITLES.length - 1 && sim.shiftsWorked % SHIFTS_PER_PROMOTION === 0) {
+      sim.jobLevel += 1;
+      toast(`🎉 Awans! ${sim.name} jest teraz: ${JOB_TITLES[sim.jobLevel]}`);
+    }
   } else {
     toast(`${sim.name} ukończył: ${a.label}`);
+  }
+  if (a.skill && a.skillGain) {
+    const before = sim.skills[a.skill];
+    sim.skills[a.skill] = clamp(before + a.skillGain, 0, SKILL_MAX);
+    if (Math.floor(sim.skills[a.skill]) > Math.floor(before)) {
+      toast(`📈 ${SKILL_META[a.skill].label} wzrosło do poziomu ${Math.floor(sim.skills[a.skill])}!`);
+    }
   }
   sim.action = null;
   sim.atWork = false;
@@ -330,7 +358,8 @@ function finishAction() {
 function applyNeedDecay(minutesPassed) {
   const sim = state.sim;
   for (const k of NEED_KEYS) {
-    const mod = traitMod(sim.trait, k, 1);
+    let mod = traitMod(sim.trait, k, 1);
+    if (k === "energy") mod *= 1 - sim.skills.fitness * 0.02;
     const rate = NEED_META[k].decay * mod;
     sim.needs[k] = clamp(sim.needs[k] - rate * minutesPassed, 0, 100);
   }
@@ -348,8 +377,9 @@ function tickMinutes(n) {
     sim.action.elapsed += n;
     const frac = Math.min(1, n / sim.action.duration);
     if (sim.action.need) {
+      const skillMult = sim.action.skill ? 1 + sim.skills[sim.action.skill] * 0.05 : 1;
       sim.needs[sim.action.need] = clamp(
-        sim.needs[sim.action.need] + sim.action.gain * frac * traitMod(sim.trait, "funGain", 1), 0, 100
+        sim.needs[sim.action.need] + sim.action.gain * frac * traitMod(sim.trait, "funGain", 1) * skillMult, 0, 100
       );
     }
     for (const [k, delta] of Object.entries(sim.action.side)) {
@@ -367,6 +397,34 @@ function tickMinutes(n) {
       sim._warned[k] = false;
     }
   }
+
+  if (!sim.action && !sim.pendingAction && sim.path.length === 0) {
+    autoFulfillCriticalNeed();
+  }
+}
+
+function autoFulfillCriticalNeed() {
+  const sim = state.sim;
+  const critical = NEED_KEYS.filter((k) => sim.needs[k] <= 15).sort((a, b) => sim.needs[a] - sim.needs[b]);
+  if (critical.length === 0) return;
+  const need = critical[0];
+  const candidates = [];
+  for (const f of state.furniture) {
+    if (f.action && !f.action.isWork && f.action.need === need) candidates.push(f);
+  }
+  for (const s of state.slots) {
+    if (s.item && s.item.action && s.item.action.need === need) {
+      candidates.push({ id: s.id, type: s.item.type, label: s.item.label, icon: s.item.icon, x: s.x, y: s.y, action: s.item.action });
+    }
+  }
+  if (candidates.length === 0) return;
+  candidates.sort((a, b) => (Math.abs(a.x - sim.x) + Math.abs(a.y - sim.y)) - (Math.abs(b.x - sim.x) + Math.abs(b.y - sim.y)));
+  const target = candidates[0];
+  const path = findPathToNeighbor(sim.x, sim.y, target.x, target.y);
+  if (path === null) return;
+  sim.path = path;
+  sim.pendingAction = target;
+  toast(`${sim.name} sam idzie zaspokoić potrzebę: ${NEED_META[need].label}`);
 }
 
 function moveSimAlongPath(dtSec) {
@@ -906,6 +964,15 @@ function updateUI() {
     el.style.width = v + "%";
     el.style.background = v > 60 ? "#4caf50" : v > 30 ? "#f6c445" : "#e35b5b";
   }
+
+  document.getElementById("jobTitle").textContent = `💼 ${JOB_TITLES[sim.jobLevel]} (poziom ${sim.jobLevel + 1}/${JOB_TITLES.length})`;
+  for (const k of Object.keys(SKILL_META)) {
+    const el = document.querySelector(`.skill[data-skill="${k}"] .skill-fill`);
+    const lvl = sim.skills[k];
+    el.style.width = (lvl / SKILL_MAX) * 100 + "%";
+    const label = document.querySelector(`.skill[data-skill="${k}"] .skill-level`);
+    label.textContent = Math.floor(lvl) + "/" + SKILL_MAX;
+  }
 }
 
 /* ---------- Panels (action / shop) ---------- */
@@ -1072,6 +1139,7 @@ function saveGame() {
     sim: {
       name: state.sim.name, color: state.sim.color, trait: state.sim.trait,
       x: state.sim.x, y: state.sim.y, needs: state.sim.needs,
+      skills: state.sim.skills, jobLevel: state.sim.jobLevel, shiftsWorked: state.sim.shiftsWorked,
       path: state.sim.path, pendingAction: state.sim.pendingAction || null,
       action: state.sim.action, atWork: state.sim.atWork,
     },
@@ -1089,6 +1157,9 @@ function loadGame() {
     state.sim = createSim(data.sim.name, data.sim.color, data.sim.trait);
     state.sim.x = data.sim.x; state.sim.y = data.sim.y;
     state.sim.needs = data.sim.needs;
+    state.sim.skills = data.sim.skills || { cooking: 0, fitness: 0, charisma: 0 };
+    state.sim.jobLevel = data.sim.jobLevel || 0;
+    state.sim.shiftsWorked = data.sim.shiftsWorked || 0;
     state.sim.path = data.sim.path || [];
     state.sim.pendingAction = data.sim.pendingAction || null;
     state.sim.action = data.sim.action || null;
