@@ -166,6 +166,9 @@ body {
 
 .skill-level { font-size: 0.85em; color: var(--text-dim); width: 28px; }
 
+#aspirationBarWrap { width: 90px; }
+#aspirationPanel.done #aspirationIcon { filter: drop-shadow(0 0 4px gold); }
+
 .relBar { display: flex; align-items: center; gap: 5px; font-size: 0.8em; }
 .relIcon { font-size: 1.1em; }
 #relLabel { color: var(--text-dim); white-space: nowrap; }

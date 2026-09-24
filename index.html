@@ -92,6 +92,13 @@
     </div>
   </div>
 
+  <div id="aspirationPanel" class="hudCard">
+    <span id="aspirationIcon">🎯</span>
+    <div class="hudCardTitle" id="aspirationName">—</div>
+    <div class="need-bar" id="aspirationBarWrap"><div id="aspirationFill" class="need-fill"></div></div>
+    <span id="aspirationProgress" class="skill-level">0/10</span>
+  </div>
+
   <div id="partnerPanel" class="hudCard hidden">
     <div class="hudCardTitle"><span id="partnerName">—</span> <span id="partnerMood">😐</span></div>
     <div class="need" data-pneed="hunger"><span class="need-icon">🍗</span><div class="need-bar"><div class="need-fill"></div></div></div>
@@ -118,6 +125,10 @@
     <div class="ccRow">
       <span>Cecha charakteru</span>
       <div id="ccTraits" class="traits"></div>
+    </div>
+    <div class="ccRow">
+      <span>Cel życiowy</span>
+      <div id="ccAspirations" class="traits"></div>
     </div>
     <button id="ccConfirm">Dalej</button>
   </div>

@@ -93,6 +93,35 @@ const JOB_TITLES = ["Stażysta", "Pracownik", "Specjalista", "Kierownik", "Dyrek
 const JOB_BASE_SALARY = [80, 120, 170, 230, 300, 400];
 const SHIFTS_PER_PROMOTION = 3;
 
+/* ---------- Aspirations (life goals) ---------- */
+const ASPIRATIONS = {
+  chef: {
+    name: "Mistrz Kuchni", icon: "🍳", desc: "Osiągnij najwyższy poziom gotowania.", reward: 400,
+    check: (sim) => sim.skills.cooking >= SKILL_MAX,
+    progress: (sim) => [Math.floor(sim.skills.cooking), SKILL_MAX],
+  },
+  tycoon: {
+    name: "Rekin Biznesu", icon: "💼", desc: "Zostań Prezesem w pracy.", reward: 600,
+    check: (sim) => sim.jobLevel >= JOB_TITLES.length - 1,
+    progress: (sim) => [sim.jobLevel + 1, JOB_TITLES.length],
+  },
+  social: {
+    name: "Dusza Towarzystwa", icon: "🗣️", desc: "Osiągnij najwyższy poziom charyzmy.", reward: 400,
+    check: (sim) => sim.skills.charisma >= SKILL_MAX,
+    progress: (sim) => [Math.floor(sim.skills.charisma), SKILL_MAX],
+  },
+  athlete: {
+    name: "Żelazna Kondycja", icon: "💪", desc: "Osiągnij najwyższy poziom kondycji.", reward: 400,
+    check: (sim) => sim.skills.fitness >= SKILL_MAX,
+    progress: (sim) => [Math.floor(sim.skills.fitness), SKILL_MAX],
+  },
+  soulmate: {
+    name: "Miłość Na Całe Życie", icon: "💗", desc: "Zbuduj pełną relację ze współlokatorem.", reward: 500,
+    check: () => !!state.partner && state.relationship >= 100,
+    progress: () => [Math.floor(state.relationship), 100],
+  },
+};
+
 /* ---------- Item catalog (furniture types: visuals + action + cost) ---------- */
 const ITEM_CATALOG = {
   fridge: { label: "Lodówka", icon: "🍽️", cost: 300, h: 40, color: "#f2f4f4",
@@ -159,6 +188,7 @@ const state = {
   selectedObj: null,
   itemCounter: 1,
   camera: { zoom: 1, camX: 0, camY: 0 },
+  weather: "clear",
 };
 
 function itemAt(x, y) {
@@ -236,7 +266,7 @@ function findPathToTile(sx, sy, tx, ty) {
 }
 
 /* ---------- Sim ---------- */
-function createSim(name, color, traitKey) {
+function createSim(name, color, traitKey, aspirationKey) {
   return {
     name, color, trait: traitKey,
     x: 3, y: 3,
@@ -246,12 +276,24 @@ function createSim(name, color, traitKey) {
     skills: { cooking: 0, fitness: 0, charisma: 0 },
     jobLevel: 0,
     shiftsWorked: 0,
+    aspiration: aspirationKey || null,
+    aspirationDone: false,
     action: null,
     pendingAction: null,
     atWork: false,
     walkPhase: 0,
     _warned: {},
   };
+}
+
+function checkAspiration(sim) {
+  if (!sim.aspiration || sim.aspirationDone) return;
+  const asp = ASPIRATIONS[sim.aspiration];
+  if (asp && asp.check(sim)) {
+    sim.aspirationDone = true;
+    state.money += asp.reward;
+    toast(`🏆 ${sim.name} spełnił(a) aspirację „${asp.name}"! (+${asp.reward} zł)`);
+  }
 }
 
 function traitMod(trait, key, def = 1) {
@@ -429,12 +471,17 @@ function moveSimAlongPath(sim, dtSec) {
 /* ---------- Global tick / loop ---------- */
 function tickMinutes(n) {
   state.minutes += n;
-  while (state.minutes >= 1440) { state.minutes -= 1440; state.day += 1; }
+  while (state.minutes >= 1440) {
+    state.minutes -= 1440;
+    state.day += 1;
+    rollWeather();
+  }
 
   applyNeedDecay(state.sim, n);
   progressAction(state.sim, n);
   checkWarnings(state.sim);
   autonomyTick(state.sim, false);
+  checkAspiration(state.sim);
 
   if (state.partner) {
     applyNeedDecay(state.partner, n);
@@ -448,6 +495,8 @@ function gameLoop(ts) {
   if (!state.lastFrame) state.lastFrame = ts;
   const dtMs = ts - state.lastFrame;
   state.lastFrame = ts;
+
+  updateWeatherParticles(Math.min(dtMs, 100) / 1000);
 
   if (state.sim && state.speed > 0) {
     moveSimAlongPath(state.sim, dtMs / 1000);
@@ -694,6 +743,74 @@ function render() {
     ctx.lineWidth = 6;
     ctx.strokeRect(3, 3, CANVAS_W - 6, CANVAS_H - 6);
   }
+
+  drawWeatherOverlay();
+}
+
+/* ---------- Seasons & weather ---------- */
+const SEASON_NAMES = ["Wiosna", "Lato", "Jesień", "Zima"];
+const DAYS_PER_SEASON = 7;
+function currentSeason() { return Math.floor((state.day - 1) / DAYS_PER_SEASON) % 4; }
+const SEASON_YARD = [
+  { color: "#8bd46a", speckle: "rgba(20,60,15,0.22)" },
+  { color: "#7ec46a", speckle: "rgba(20,60,15,0.22)" },
+  { color: "#c9a24a", speckle: "rgba(120,70,10,0.25)" },
+  { color: "#dfe7ec", speckle: "rgba(150,170,190,0.35)", snowColor: "#eef3f6" },
+];
+
+let weatherParticles = [];
+function initWeatherParticles() {
+  const count = state.weather === "snow" ? 70 : state.weather === "rain" ? 90 : 0;
+  weatherParticles = [];
+  for (let i = 0; i < count; i++) {
+    weatherParticles.push({
+      x: Math.random() * window.innerWidth,
+      y: Math.random() * window.innerHeight,
+      speed: state.weather === "snow" ? 25 + Math.random() * 30 : 420 + Math.random() * 260,
+      drift: state.weather === "snow" ? (Math.random() - 0.5) * 24 : (Math.random() - 0.5) * 8,
+      len: 8 + Math.random() * 10,
+      r: 1.3 + Math.random() * 2,
+    });
+  }
+}
+function rollWeather() {
+  const season = currentSeason();
+  const r = Math.random();
+  if (season === 3) state.weather = r < 0.45 ? "snow" : "clear";
+  else if (season === 0 || season === 2) state.weather = r < 0.4 ? "rain" : "clear";
+  else state.weather = r < 0.15 ? "rain" : "clear";
+  initWeatherParticles();
+}
+function updateWeatherParticles(dtSec) {
+  if (state.weather === "clear") return;
+  const h = window.innerHeight, w = window.innerWidth;
+  for (const p of weatherParticles) {
+    p.y += p.speed * dtSec;
+    p.x += p.drift * dtSec;
+    if (p.y > h + 10) { p.y = -10; p.x = Math.random() * w; }
+    if (p.x < -10) p.x = w + 10; else if (p.x > w + 10) p.x = -10;
+  }
+}
+function drawWeatherOverlay() {
+  if (state.weather === "clear" || weatherParticles.length === 0) return;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (state.weather === "rain") {
+    ctx.strokeStyle = "rgba(180,200,230,0.5)";
+    ctx.lineWidth = 1.3;
+    for (const p of weatherParticles) {
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(p.x - p.drift * 0.03, p.y + p.len);
+      ctx.stroke();
+    }
+  } else if (state.weather === "snow") {
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    for (const p of weatherParticles) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
 }
 
 function drawFloorTile(tx, ty, zone) {
@@ -701,7 +818,10 @@ function drawFloorTile(tx, ty, zone) {
   const N = { x: cx, y: cy - ISO_TH / 2 }, E = { x: cx + ISO_TW / 2, y: cy };
   const S = { x: cx, y: cy + ISO_TH / 2 }, W = { x: cx - ISO_TW / 2, y: cy };
   const checker = (tx + ty) % 2 === 0;
-  const base = zone.floorType === "tile" ? shade(zone.color, checker ? 1.0 : 0.93) : zone.color;
+  const seasonYard = SEASON_YARD[currentSeason()];
+  const grassBase = state.weather === "snow" ? seasonYard.snowColor || seasonYard.color : seasonYard.color;
+  const base = zone.floorType === "tile" ? shade(zone.color, checker ? 1.0 : 0.93)
+    : zone.floorType === "grass" ? grassBase : zone.color;
 
   ctx.beginPath();
   ctx.moveTo(N.x, N.y); ctx.lineTo(E.x, E.y); ctx.lineTo(S.x, S.y); ctx.lineTo(W.x, W.y); ctx.closePath();
@@ -724,7 +844,7 @@ function drawFloorTile(tx, ty, zone) {
     ctx.beginPath(); ctx.moveTo(N.x, N.y); ctx.lineTo(S.x, S.y); ctx.moveTo(W.x, W.y); ctx.lineTo(E.x, E.y); ctx.stroke();
   } else if (zone.floorType === "grass") {
     const rnd = mulberry32(tx * 131 + ty * 977 + 7);
-    ctx.fillStyle = "rgba(20,60,15,0.22)";
+    ctx.fillStyle = seasonYard.speckle;
     for (let i = 0; i < 3; i++) {
       const u = rnd() * 2 - 1, v = rnd() * 2 - 1;
       if (Math.abs(u) + Math.abs(v) > 0.75) continue;
@@ -1002,8 +1122,9 @@ function updateUI() {
   document.getElementById("mood").textContent = moodFromNeeds(sim);
   const hour = Math.floor(state.minutes / 60);
   const min = Math.floor(state.minutes % 60);
+  const weatherIcon = state.weather === "rain" ? " 🌧️" : state.weather === "snow" ? " ❄️" : "";
   document.getElementById("clock").textContent =
-    `Dzień ${state.day}, ${String(hour).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+    `Dzień ${state.day} · ${SEASON_NAMES[currentSeason()]}${weatherIcon}, ${String(hour).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
   document.getElementById("money").textContent = `💰 ${state.money} zł`;
 
   for (const k of NEED_KEYS) {
@@ -1019,6 +1140,21 @@ function updateUI() {
     const lvl = sim.skills[k];
     el.style.width = (lvl / SKILL_MAX) * 100 + "%";
     document.querySelector(`.skill[data-skill="${k}"] .skill-level`).textContent = Math.floor(lvl) + "/" + SKILL_MAX;
+  }
+
+  const aspPanel = document.getElementById("aspirationPanel");
+  if (sim.aspiration && ASPIRATIONS[sim.aspiration]) {
+    const asp = ASPIRATIONS[sim.aspiration];
+    const [cur, max] = asp.progress(sim);
+    document.getElementById("aspirationIcon").textContent = sim.aspirationDone ? "🏆" : asp.icon;
+    document.getElementById("aspirationName").textContent = asp.name;
+    document.getElementById("aspirationFill").style.width = Math.min(100, (cur / max) * 100) + "%";
+    document.getElementById("aspirationFill").style.background = sim.aspirationDone ? "#f6c445" : "var(--accent2)";
+    document.getElementById("aspirationProgress").textContent = sim.aspirationDone ? "✓" : `${cur}/${max}`;
+    aspPanel.classList.toggle("done", sim.aspirationDone);
+    aspPanel.classList.remove("hidden");
+  } else {
+    aspPanel.classList.add("hidden");
   }
 
   const partnerPanel = document.getElementById("partnerPanel");
@@ -1380,17 +1516,19 @@ function serializeSim(sim) {
   return {
     name: sim.name, color: sim.color, trait: sim.trait, x: sim.x, y: sim.y,
     needs: sim.needs, skills: sim.skills, jobLevel: sim.jobLevel, shiftsWorked: sim.shiftsWorked,
+    aspiration: sim.aspiration, aspirationDone: sim.aspirationDone,
     path: sim.path, pendingAction: sim.pendingAction ? { id: sim.pendingAction.id } : null,
     action: sim.action, atWork: sim.atWork,
   };
 }
 function deserializeSim(data) {
-  const sim = createSim(data.name, data.color, data.trait);
+  const sim = createSim(data.name, data.color, data.trait, data.aspiration);
   sim.x = data.x; sim.y = data.y;
   sim.needs = data.needs;
   sim.skills = data.skills || { cooking: 0, fitness: 0, charisma: 0 };
   sim.jobLevel = data.jobLevel || 0;
   sim.shiftsWorked = data.shiftsWorked || 0;
+  sim.aspirationDone = !!data.aspirationDone;
   sim.path = data.path || [];
   sim.pendingAction = data.pendingAction ? itemAt2(data.pendingAction.id) : null;
   sim.action = data.action || null;
@@ -1406,7 +1544,7 @@ function saveGame() {
       partner: state.partner ? serializeSim(state.partner) : null,
       relationship: state.relationship,
       money: state.money, day: state.day, minutes: state.minutes,
-      items: state.items, itemCounter: state.itemCounter,
+      items: state.items, itemCounter: state.itemCounter, weather: state.weather,
     };
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
   } catch (e) { /* storage unavailable */ }
@@ -1424,6 +1562,7 @@ function loadGame() {
     state.partner = data.partner ? deserializeSim(data.partner) : null;
     state.relationship = data.relationship || 30;
     state.money = data.money; state.day = data.day; state.minutes = data.minutes;
+    state.weather = data.weather || "clear";
     return true;
   } catch (e) {
     return false;
@@ -1436,6 +1575,7 @@ setInterval(() => { if (state.sim) saveGame(); }, 30000);
 /* ---------- Character creators ---------- */
 let ccSelectedColor = COLORS[0];
 let ccSelectedTrait = Object.keys(TRAITS)[0];
+let ccSelectedAspiration = Object.keys(ASPIRATIONS)[0];
 let pcSelectedColor = COLORS[1];
 
 function buildSwatches(container, onPick, defaultColor) {
@@ -1469,9 +1609,22 @@ function initCharCreator() {
     traitsEl.appendChild(div);
   });
 
+  const aspEl = document.getElementById("ccAspirations");
+  Object.entries(ASPIRATIONS).forEach(([key, a], i) => {
+    const div = document.createElement("div");
+    div.className = "trait" + (i === 0 ? " selected" : "");
+    div.innerHTML = `<b>${a.icon} ${a.name}</b> — ${a.desc}`;
+    div.onclick = () => {
+      ccSelectedAspiration = key;
+      aspEl.querySelectorAll(".trait").forEach((d) => d.classList.remove("selected"));
+      div.classList.add("selected");
+    };
+    aspEl.appendChild(div);
+  });
+
   document.getElementById("ccConfirm").addEventListener("click", () => {
     const name = document.getElementById("ccName").value.trim() || "Sim";
-    state.sim = createSim(name, ccSelectedColor, ccSelectedTrait);
+    state.sim = createSim(name, ccSelectedColor, ccSelectedTrait, ccSelectedAspiration);
     document.getElementById("charCreator").classList.add("hidden");
     initPartnerCreator();
     document.getElementById("partnerCreator").classList.remove("hidden");
@@ -1504,6 +1657,9 @@ function boot() {
   if (loadGame()) {
     document.getElementById("charCreator").classList.add("hidden");
     document.getElementById("partnerCreator").classList.add("hidden");
+    initWeatherParticles();
+  } else {
+    rollWeather();
   }
   resizeCanvas();
   requestAnimationFrame(gameLoop);
