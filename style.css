@@ -71,6 +71,8 @@ body {
 
 .mood { font-size: 1.3em; }
 
+#speedControls, #zoomControls { display: flex; gap: 6px; }
+
 #speedControls button, #topbar button {
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid var(--border);

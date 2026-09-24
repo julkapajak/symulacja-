@@ -158,6 +158,7 @@ const state = {
   accumMs: 0,
   selectedObj: null,
   itemCounter: 1,
+  camera: { zoom: 1, camX: 0, camY: 0 },
 };
 
 function itemAt(x, y) {
@@ -558,25 +559,23 @@ function warmAmount(hour) {
   return Math.max(dawn, dusk);
 }
 
-/* ---------- Canvas + fullscreen fit transform ---------- */
+/* ---------- Canvas + fullscreen fit transform (with user zoom/pan camera) ---------- */
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
-let dpr = 1, fitScale = 1, offCssX = 0, offCssY = 0;
+let dpr = 1, fitScale = 1, topBarH = 0, botHudH = 0;
+const ZOOM_MIN = 1, ZOOM_MAX = 4.5;
 
 function resizeCanvas() {
   dpr = Math.min(window.devicePixelRatio || 1, 2);
   const topEl = document.getElementById("topbar");
   const botEl = document.getElementById("bottomHud");
-  const topH = topEl ? topEl.getBoundingClientRect().height : 0;
-  const botH = botEl ? botEl.getBoundingClientRect().height : 0;
+  topBarH = topEl ? topEl.getBoundingClientRect().height : 0;
+  botHudH = botEl ? botEl.getBoundingClientRect().height : 0;
   const vw = window.innerWidth, vh = window.innerHeight;
   const availW = Math.max(200, vw - 24);
-  const availH = Math.max(200, vh - topH - botH - 20);
+  const availH = Math.max(200, vh - topBarH - botHudH - 20);
   const rawScale = Math.min(availW / CANVAS_W, availH / CANVAS_H);
   fitScale = Math.max(0.5, Math.min(rawScale, 2.6));
-  const dispW = CANVAS_W * fitScale, dispH = CANVAS_H * fitScale;
-  offCssX = (vw - dispW) / 2;
-  offCssY = topH + Math.max(0, (vh - topH - botH - dispH) / 2);
   canvas.width = Math.max(1, Math.round(vw * dpr));
   canvas.height = Math.max(1, Math.round(vh * dpr));
   canvas.style.width = vw + "px";
@@ -585,12 +584,43 @@ function resizeCanvas() {
 window.addEventListener("resize", resizeCanvas);
 window.addEventListener("orientationchange", resizeCanvas);
 
+function viewCenter() {
+  return { x: window.innerWidth / 2, y: topBarH + (window.innerHeight - topBarH - botHudH) / 2 };
+}
+function getTransform() {
+  const scale = fitScale * state.camera.zoom;
+  const c = viewCenter();
+  return { scale, offCssX: c.x - state.camera.camX * scale, offCssY: c.y - state.camera.camY * scale };
+}
+function clampCamera() {
+  state.camera.camX = clamp(state.camera.camX, -CANVAS_W * 0.15, CANVAS_W * 1.15);
+  state.camera.camY = clamp(state.camera.camY, -CANVAS_H * 0.15, CANVAS_H * 1.15);
+}
+function setZoomAt(cssX, cssY, targetZoom) {
+  const before = getTransform();
+  const nativeX = state.camera.camX + (cssX - viewCenter().x) / before.scale;
+  const nativeY = state.camera.camY + (cssY - viewCenter().y) / before.scale;
+  state.camera.zoom = clamp(targetZoom, ZOOM_MIN, ZOOM_MAX);
+  const after = getTransform();
+  state.camera.camX = nativeX - (cssX - viewCenter().x) / after.scale;
+  state.camera.camY = nativeY - (cssY - viewCenter().y) / after.scale;
+  clampCamera();
+}
+function zoomBy(cssX, cssY, factor) { setZoomAt(cssX, cssY, state.camera.zoom * factor); }
+function resetCamera() {
+  state.camera.zoom = 1;
+  state.camera.camX = CANVAS_W / 2;
+  state.camera.camY = CANVAS_H / 2;
+}
+resetCamera();
+
 /* ---------- Render ---------- */
 function render() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = "#05070f";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.setTransform(dpr * fitScale, 0, 0, dpr * fitScale, dpr * offCssX, dpr * offCssY);
+  const { scale, offCssX, offCssY } = getTransform();
+  ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * offCssX, dpr * offCssY);
 
   const hourFloat = state.minutes / 60;
   const sky = skyColors(hourFloat);
@@ -882,9 +912,12 @@ function drawFurnitureDetail(type, g) {
 function drawSim(sim) {
   const { x: cx, y: cy } = project(sim.x, sim.y);
 
+  const shadowGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, ISO_TW * 0.22);
+  shadowGrad.addColorStop(0, "rgba(0,0,0,0.32)");
+  shadowGrad.addColorStop(1, "rgba(0,0,0,0)");
   ctx.beginPath();
-  ctx.ellipse(cx, cy, ISO_TW * 0.2, ISO_TH * 0.32, 0, 0, Math.PI * 2);
-  ctx.fillStyle = "rgba(0,0,0,0.28)";
+  ctx.ellipse(cx, cy, ISO_TW * 0.22, ISO_TH * 0.34, 0, 0, Math.PI * 2);
+  ctx.fillStyle = shadowGrad;
   ctx.fill();
 
   const walking = sim.path.length > 0;
@@ -1171,12 +1204,13 @@ function openItemPicker(tx, ty) {
 function screenToNative(clientX, clientY) {
   const rect = canvas.getBoundingClientRect();
   const relX = clientX - rect.left, relY = clientY - rect.top;
-  return { nx: (relX - offCssX) / fitScale, ny: (relY - offCssY) / fitScale, cssX: relX, cssY: relY };
+  const { scale, offCssX, offCssY } = getTransform();
+  return { nx: (relX - offCssX) / scale, ny: (relY - offCssY) / scale, cssX: relX, cssY: relY };
 }
 
-canvas.addEventListener("click", (e) => {
+function handleTap(clientX, clientY) {
   if (!state.sim) return;
-  const { nx, ny, cssX, cssY } = screenToNative(e.clientX, e.clientY);
+  const { nx, ny, cssX, cssY } = screenToNative(clientX, clientY);
 
   const rx = nx - ORIGIN_X, ry = ny - ORIGIN_Y;
   const txf = (rx / (ISO_TW / 2) + ry / (ISO_TH / 2)) / 2;
@@ -1243,7 +1277,76 @@ canvas.addEventListener("click", (e) => {
       state.sim.pendingAction = null;
     }
   }
+}
+
+/* ---------- Pointer input: tap-to-interact, drag-to-pan, wheel/pinch-to-zoom ---------- */
+const activePointers = new Map();
+let dragPointerId = null, dragStart = null, dragLast = null, dragged = false;
+let pinchStartDist = 0, pinchStartZoom = 1;
+
+canvas.addEventListener("pointerdown", (e) => {
+  canvas.setPointerCapture(e.pointerId);
+  activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (activePointers.size === 1) {
+    dragPointerId = e.pointerId;
+    dragStart = { x: e.clientX, y: e.clientY };
+    dragLast = { x: e.clientX, y: e.clientY };
+    dragged = false;
+  } else if (activePointers.size === 2) {
+    dragPointerId = null;
+    const pts = [...activePointers.values()];
+    pinchStartDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+    pinchStartZoom = state.camera.zoom;
+  }
 });
+
+canvas.addEventListener("pointermove", (e) => {
+  if (!activePointers.has(e.pointerId)) return;
+  activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+  if (activePointers.size === 2) {
+    const pts = [...activePointers.values()];
+    const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+    const midX = (pts[0].x + pts[1].x) / 2, midY = (pts[0].y + pts[1].y) / 2;
+    if (pinchStartDist > 10) {
+      setZoomAt(midX, midY, pinchStartZoom * (dist / pinchStartDist));
+    }
+    return;
+  }
+
+  if (e.pointerId === dragPointerId && dragStart) {
+    const totalMove = Math.hypot(e.clientX - dragStart.x, e.clientY - dragStart.y);
+    if (!dragged && totalMove > 6) dragged = true;
+    if (dragged) {
+      const { scale } = getTransform();
+      state.camera.camX -= (e.clientX - dragLast.x) / scale;
+      state.camera.camY -= (e.clientY - dragLast.y) / scale;
+      clampCamera();
+    }
+    dragLast = { x: e.clientX, y: e.clientY };
+  }
+});
+
+function pointerEnd(e) {
+  activePointers.delete(e.pointerId);
+  if (e.pointerId === dragPointerId) {
+    if (!dragged) handleTap(e.clientX, e.clientY);
+    dragPointerId = null; dragStart = null; dragLast = null; dragged = false;
+  }
+  if (activePointers.size < 2) pinchStartDist = 0;
+}
+canvas.addEventListener("pointerup", pointerEnd);
+canvas.addEventListener("pointercancel", pointerEnd);
+
+canvas.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+  zoomBy(e.clientX, e.clientY, factor);
+}, { passive: false });
+
+document.getElementById("zoomInBtn").addEventListener("click", () => zoomBy(window.innerWidth / 2, (topBarH + window.innerHeight - botHudH) / 2, 1.35));
+document.getElementById("zoomOutBtn").addEventListener("click", () => zoomBy(window.innerWidth / 2, (topBarH + window.innerHeight - botHudH) / 2, 1 / 1.35));
+document.getElementById("zoomResetBtn").addEventListener("click", () => resetCamera());
 
 document.getElementById("speedControls").addEventListener("click", (e) => {
   const btn = e.target.closest("button");
