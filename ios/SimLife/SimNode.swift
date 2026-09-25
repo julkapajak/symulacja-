@@ -8,7 +8,9 @@ final class SimNode: SKNode {
     var gridX: CGFloat
     var gridY: CGFloat
     var path: [(x: Int, y: Int)] = []
-    let speed: CGFloat = 4.2 // tiles per second, matches app.js sim.speed
+    // Named walkSpeed, not speed: SKNode already declares a `speed` property
+    // (it scales the playback rate of actions run on this node).
+    let walkSpeed: CGFloat = 4.2 // tiles per second, matches app.js sim.speed
 
     init(startX: Int, startY: Int, color: SKColor, name: String) {
         gridX = CGFloat(startX)
@@ -64,7 +66,7 @@ final class SimNode: SKNode {
             path.removeFirst()
             return
         }
-        let step = speed * dt
+        let step = walkSpeed * dt
         if step >= dist {
             gridX = CGFloat(target.x)
             gridY = CGFloat(target.y)
