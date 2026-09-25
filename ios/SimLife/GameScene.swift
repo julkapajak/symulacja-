@@ -2,20 +2,34 @@ import SpriteKit
 import UIKit
 
 /// Faza 1 przeniosła świat domu (podłogi, ściany, drzwi, okna, meble) z prototypu przeglądarkowego.
-/// Faza 2 dodaje interakcję: dotknięcie pustego pola prowadzi Sima tam po prawdziwej ścieżce
+/// Faza 2 dodała interakcję: dotknięcie pustego pola prowadzi Sima tam po prawdziwej ścieżce
 /// (BFS omijający ściany, patrz Pathfinding.swift), a przeciąganie/uszczypnięcie steruje kamerą
 /// SpriteKit (SKCameraNode) — odpowiednik JS-owej warstwy zoom/pan (state.camera / getTransform).
+/// Faza 3 dodaje samą rozgrywkę: potrzeby opadające w czasie, dotknięcie mebla żeby z niego
+/// skorzystać, umiejętności, karierę i HUD (SwiftUI, patrz GameHUDModel.swift/HUDView.swift) —
+/// odpowiednik JS-owego tickMinutes/gameLoop.
 final class GameScene: SKScene, UIGestureRecognizerDelegate {
 
     private let worldContainer = SKNode()
     private let cameraNode = SKCameraNode()
     private var simNode: SimNode!
 
+    /// Set by ContentView right after creating the scene. update(_:) pushes simulation state
+    /// into it every frame; nil only for the handful of frames before that assignment lands.
+    var hud: GameHUDModel?
+
     private var lastUpdateTime: TimeInterval = 0
     private var worldHalfWidth: CGFloat = 400
     private var worldHalfHeight: CGFloat = 300
     private var minCameraScale: CGFloat = 1
     private var maxCameraScale: CGFloat = 4
+
+    // Simulation clock — mirrors app.js's state.minutes/state.day and the BASE_MIN_MS cadence.
+    private var money: Double = 500
+    private var day = 1
+    private var minutesOfDay: Double = 8 * 60
+    private var accumMs: Double = 0
+    private let baseMinMs: Double = 150
 
     override func didMove(to view: SKView) {
         backgroundColor = SKColor(hex: "#05070f")
@@ -53,7 +67,54 @@ final class GameScene: SKScene, UIGestureRecognizerDelegate {
         defer { lastUpdateTime = currentTime }
         guard lastUpdateTime > 0 else { return }
         let dt = min(currentTime - lastUpdateTime, 0.1)
+
         simNode.advance(dt: CGFloat(dt))
+
+        let hour = Int(minutesOfDay / 60) % 24
+        if let message = simNode.beginPendingActionIfArrived(hour: hour) {
+            hud?.postToast(message)
+        }
+
+        accumMs += dt * 1000
+        while accumMs >= baseMinMs {
+            accumMs -= baseMinMs
+            tickMinute()
+        }
+
+        guard let hud else { return }
+        hud.money = money
+        hud.day = day
+        hud.timeLabel = formattedTime()
+        hud.jobTitle = CareerCatalog.jobTitles[simNode.jobLevel]
+        hud.needs = simNode.needs
+    }
+
+    /// One simulated minute of game time: need decay, action progress, warnings and autonomy —
+    /// mirrors app.js's tickMinutes(1) body (minus aspirations/partner, which aren't ported yet).
+    private func tickMinute() {
+        minutesOfDay += 1
+        while minutesOfDay >= 1440 {
+            minutesOfDay -= 1440
+            day += 1
+        }
+
+        simNode.applyNeedDecay(minutes: 1)
+        if let result = simNode.progressAction(minutes: 1) {
+            money += result.moneyDelta
+            hud?.postToast(result.message)
+        }
+        for message in simNode.checkWarnings() {
+            hud?.postToast(message)
+        }
+        if let message = simNode.tryAutonomy() {
+            hud?.postToast(message)
+        }
+    }
+
+    private func formattedTime() -> String {
+        let h = Int(minutesOfDay / 60) % 24
+        let m = Int(minutesOfDay) % 60
+        return String(format: "%02d:%02d", h, m)
     }
 
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
@@ -125,10 +186,18 @@ final class GameScene: SKScene, UIGestureRecognizerDelegate {
         let localPoint = worldContainer.convert(scenePoint, from: self)
         let canvasPoint = CGPoint(x: localPoint.x, y: -localPoint.y)
         let (tx, ty) = Iso.tileForCanvasPoint(canvasPoint)
+        guard tx >= 0, ty >= 0, tx < World.cols, ty < World.rows else { return }
+
+        if let placement = World.starterItems.first(where: { $0.x == tx && $0.y == ty }) {
+            guard World.furnitureCatalog[placement.type]?.action != nil else { return }
+            simNode.startAction(towardItemType: placement.type)
+            return
+        }
 
         guard Pathfinding.isWalkable(tx, ty) else { return }
-        let start = (x: Int(simNode.gridX.rounded()), y: Int(simNode.gridY.rounded()))
+        let start = simNode.tile
         guard let path = Pathfinding.findPath(from: start, to: (tx, ty)) else { return }
+        simNode.cancelCurrentActivity()
         simNode.path = path
     }
 

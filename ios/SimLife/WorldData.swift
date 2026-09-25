@@ -41,6 +41,7 @@ struct FurnitureCatalogEntry {
     let icon: String
     let color: String
     let height: CGFloat
+    let action: FurnitureAction?
 }
 
 enum World {
@@ -107,17 +108,27 @@ enum World {
     }
 
     static let furnitureCatalog: [String: FurnitureCatalogEntry] = [
-        "fridge": FurnitureCatalogEntry(label: "Lodówka", icon: "🍽️", color: "#f2f4f4", height: 40),
-        "sink": FurnitureCatalogEntry(label: "Umywalka", icon: "🚰", color: "#dceff5", height: 20),
-        "toilet": FurnitureCatalogEntry(label: "Toaleta", icon: "🚽", color: "#ffffff", height: 22),
-        "shower": FurnitureCatalogEntry(label: "Prysznic", icon: "🚿", color: "#cdeaf7", height: 34),
-        "bed": FurnitureCatalogEntry(label: "Łóżko", icon: "🛏️", color: "#e3d3f5", height: 16),
-        "bookshelf": FurnitureCatalogEntry(label: "Regał", icon: "📚", color: "#b3814f", height: 42),
-        "sofa": FurnitureCatalogEntry(label: "Sofa", icon: "🛋️", color: "#efa08a", height: 22),
-        "tv": FurnitureCatalogEntry(label: "Telewizor", icon: "📺", color: "#33393f", height: 30),
-        "computer": FurnitureCatalogEntry(label: "Komputer", icon: "💻", color: "#7a828c", height: 26),
-        "car": FurnitureCatalogEntry(label: "Praca (Samochód)", icon: "🚗", color: "#e35b52", height: 26),
-        "tree": FurnitureCatalogEntry(label: "Drzewo", icon: "🌳", color: "#5fae5f", height: 36),
+        "fridge": FurnitureCatalogEntry(label: "Lodówka", icon: "🍽️", color: "#f2f4f4", height: 40, action:
+            FurnitureAction(label: "Zjedz", need: "hunger", gain: 60, durationMinutes: 20, side: [:], isWork: false, skill: "cooking", skillGain: 0.12)),
+        "sink": FurnitureCatalogEntry(label: "Umywalka", icon: "🚰", color: "#dceff5", height: 20, action:
+            FurnitureAction(label: "Umyj ręce", need: "hygiene", gain: 20, durationMinutes: 8, side: [:], isWork: false, skill: nil, skillGain: 0)),
+        "toilet": FurnitureCatalogEntry(label: "Toaleta", icon: "🚽", color: "#ffffff", height: 22, action:
+            FurnitureAction(label: "Skorzystaj z toalety", need: "bladder", gain: 100, durationMinutes: 6, side: [:], isWork: false, skill: nil, skillGain: 0)),
+        "shower": FurnitureCatalogEntry(label: "Prysznic", icon: "🚿", color: "#cdeaf7", height: 34, action:
+            FurnitureAction(label: "Weź prysznic", need: "hygiene", gain: 100, durationMinutes: 15, side: ["energy": 5], isWork: false, skill: nil, skillGain: 0)),
+        "bed": FurnitureCatalogEntry(label: "Łóżko", icon: "🛏️", color: "#e3d3f5", height: 16, action:
+            FurnitureAction(label: "Śpij", need: "energy", gain: 100, durationMinutes: 240, side: ["hygiene": -10, "bladder": -15], isWork: false, skill: nil, skillGain: 0)),
+        "bookshelf": FurnitureCatalogEntry(label: "Regał", icon: "📚", color: "#b3814f", height: 42, action:
+            FurnitureAction(label: "Czytaj", need: "fun", gain: 25, durationMinutes: 30, side: [:], isWork: false, skill: nil, skillGain: 0)),
+        "sofa": FurnitureCatalogEntry(label: "Sofa", icon: "🛋️", color: "#efa08a", height: 22, action:
+            FurnitureAction(label: "Odpoczywaj", need: "fun", gain: 20, durationMinutes: 40, side: ["energy": 10], isWork: false, skill: nil, skillGain: 0)),
+        "tv": FurnitureCatalogEntry(label: "Telewizor", icon: "📺", color: "#33393f", height: 30, action:
+            FurnitureAction(label: "Oglądaj TV", need: "fun", gain: 35, durationMinutes: 60, side: ["energy": -5], isWork: false, skill: nil, skillGain: 0)),
+        "computer": FurnitureCatalogEntry(label: "Komputer", icon: "💻", color: "#7a828c", height: 26, action:
+            FurnitureAction(label: "Graj na komputerze", need: "fun", gain: 30, durationMinutes: 55, side: ["energy": -10], isWork: false, skill: nil, skillGain: 0)),
+        "car": FurnitureCatalogEntry(label: "Praca (Samochód)", icon: "🚗", color: "#e35b52", height: 26, action:
+            FurnitureAction(label: "Jedź do pracy", need: nil, gain: 0, durationMinutes: 480, side: ["energy": -30, "fun": -10, "social": -10, "hygiene": -15, "hunger": -20], isWork: true, skill: nil, skillGain: 0)),
+        "tree": FurnitureCatalogEntry(label: "Drzewo", icon: "🌳", color: "#5fae5f", height: 36, action: nil),
     ]
 
     static let starterItems: [FurniturePlacement] = [

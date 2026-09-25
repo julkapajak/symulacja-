@@ -1,10 +1,19 @@
-# SimLife na iPada — Faza 2 (ruch i gesty)
+# SimLife na iPada — Faza 3 (rozgrywka)
 
-To jest natywna aplikacja SwiftUI + SpriteKit, oddzielna od wersji przeglądarkowej w katalogu głównym repo. Faza 0 udowodniła, że cały łańcuch narzędzi (XcodeGen → Xcode → symulator) działa. Faza 1 przeniosła prawdziwy dom z `app.js`: 16×9 pól, 5 pokoi z automatycznie wygenerowanymi ścianami/drzwiami/oknami i starterowe meble. Faza 2 dodaje interakcję:
+To jest natywna aplikacja SwiftUI + SpriteKit, oddzielna od wersji przeglądarkowej w katalogu głównym repo. Faza 0 udowodniła, że cały łańcuch narzędzi (XcodeGen → Xcode → symulator) działa. Faza 1 przeniosła prawdziwy dom z `app.js`. Faza 2 dodała ruch i gesty:
 
-- **Dotknij pustego pola**, żeby Sim tam poszedł — prawdziwy pathfinding (BFS) omija ściany i meble, tak jak w wersji przeglądarkowej.
+- **Dotknij pustego pola**, żeby Sim tam poszedł — prawdziwy pathfinding (BFS) omija ściany i meble.
 - **Przeciągnij**, żeby przesunąć widok kamery.
 - **Uszczypnij (pinch)**, żeby przybliżyć/oddalić — zoomuje w punkt pod palcami.
+
+Faza 3 dodaje samą rozgrywkę:
+
+- **6 potrzeb** (głód, energia, higiena, zabawa, kontakty, pęcherz), opadających w czasie — widoczne jako paski na dole ekranu.
+- **Dotknij mebla**, żeby z niego skorzystać (zjedz przy lodówce, prysznic, sen w łóżku, TV, komputer, itd.) — Sim tam podejdzie i użyje go.
+- **Umiejętności** (gotowanie, kondycja, charyzma) rosnące wraz z użyciem powiązanych sprzętów.
+- **Kariera**: samochód to praca — dojazd 8:00–18:00, wypłata i awanse co 3 zmiany.
+- **Autonomia**: gdy potrzeba spadnie krytycznie nisko, Sim sam idzie ją zaspokoić.
+- **HUD** (SwiftUI, nałożony na scenę): pieniądze, dzień, godzina, stanowisko, paski potrzeb i dymki z komunikatami.
 
 Masz MacBooka Air M1 — to wystarczy, żeby zrobić i przetestować całość lokalnie, bez czekania na CI.
 
@@ -32,8 +41,9 @@ W Xcode:
 2. Naciśnij ▶ (albo `Cmd+R`).
 3. Po chwili powinieneś zobaczyć: niebieskie niebo ze słońcem, izometryczny dom z pięcioma pokojami (kolorowe podłogi, ściany, okna, dwoje drzwi), startowe meble (lodówka, łóżko, telewizor, itd.) i Sima.
 4. Dotknij dowolnego wolnego pola (na symulatorze: kliknij myszką) — Sim powinien tam dojść, omijając ściany. Przeciągnij, żeby przesunąć widok. Uszczypnij (na symulatorze: przytrzymaj Option i przeciągnij), żeby przybliżyć/oddalić.
+5. Na dole ekranu powinny być widoczne paski potrzeb, a u góry pieniądze/dzień/godzina/stanowisko. Dotknij lodówki, łóżka, prysznica, TV albo komputera — Sim powinien tam podejść i zacząć z nich korzystać (pojawi się dymek z komunikatem, a odpowiedni pasek potrzeby zacznie rosnąć). Dotknij samochodu w godzinach 8:00–18:00, żeby Sim poszedł do pracy.
 
-Jeśli to działa — ruch i kamera są gotowe, możemy przejść do kolejnej fazy: potrzeb, umiejętności, kariery i trybu budowania.
+Jeśli to działa — cała podstawowa rozgrywka jest gotowa. Dalej w planie: aspiracje, tryb budowania i współlokator.
 
 ## Testowanie na prawdziwym iPadzie (opcjonalnie, już teraz)
 
