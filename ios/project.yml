@@ -1,0 +1,50 @@
+name: SimLife
+options:
+  bundleIdPrefix: com.simlife.app
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    TARGETED_DEVICE_FAMILY: "1,2" # iPhone + iPad (iPad is the primary target)
+    SUPPORTS_MACCATALYST: false
+    CODE_SIGN_STYLE: Automatic
+
+targets:
+  SimLife:
+    type: application
+    platform: iOS
+    sources:
+      - path: SimLife
+    info:
+      path: SimLife/Info.plist
+      properties:
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+          - UIInterfaceOrientationPortrait
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+        UIRequiresFullScreen: false
+        UIApplicationSupportsIndirectInputEvents: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.simlife.app.SimLife
+        PRODUCT_NAME: SimLife
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        ENABLE_PREVIEWS: true
+    schemes:
+      SimLife:
+        build:
+          targets:
+            SimLife: all
+        test: {}
+        run:
+          config: Debug

@@ -1,0 +1,76 @@
+name: iOS Build
+
+on:
+  push:
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios-build.yml"
+  pull_request:
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios-build.yml"
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: ios
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer || sudo xcode-select -p
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Pick an available iPad simulator
+        id: sim
+        run: |
+          NAME=$(xcrun simctl list devices available | grep -o 'iPad[^(]*' | head -n 1 | sed 's/[[:space:]]*$//')
+          if [ -z "$NAME" ]; then
+            echo "No iPad simulator found, falling back to any available iPhone simulator"
+            NAME=$(xcrun simctl list devices available | grep -o 'iPhone[^(]*' | head -n 1 | sed 's/[[:space:]]*$//')
+          fi
+          echo "Using simulator: $NAME"
+          echo "device_name=$NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Build for simulator
+        run: |
+          xcodebuild build \
+            -project SimLife.xcodeproj \
+            -scheme SimLife \
+            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.device_name }}" \
+            CODE_SIGNING_ALLOWED=NO | xcpretty || xcodebuild build \
+            -project SimLife.xcodeproj \
+            -scheme SimLife \
+            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.device_name }}" \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Boot simulator and capture a screenshot
+        if: success()
+        run: |
+          set -e
+          DEVICE_ID=$(xcrun simctl list devices available | grep "${{ steps.sim.outputs.device_name }}" | head -n 1 | grep -oE '[0-9A-F-]{36}')
+          xcrun simctl boot "$DEVICE_ID" || true
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+          APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "SimLife.app" -path "*iphonesimulator*" | head -n 1)
+          xcrun simctl install "$DEVICE_ID" "$APP_PATH"
+          xcrun simctl launch "$DEVICE_ID" com.simlife.app.SimLife
+          sleep 3
+          mkdir -p ../ci-artifacts
+          xcrun simctl io "$DEVICE_ID" screenshot ../ci-artifacts/simlife-screenshot.png
+
+      - name: Upload screenshot
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: simlife-simulator-screenshot
+          path: ci-artifacts/simlife-screenshot.png
+          if-no-files-found: warn

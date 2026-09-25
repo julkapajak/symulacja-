@@ -4,6 +4,8 @@ Przeglądarkowa gra życiowa inspirowana serią *The Sims* — bez żadnych zale
 
 Zagraj od razu: otwórz `index.html` w przeglądarce (lub zobacz opublikowaną wersję / wersję na GitHub Pages, jeśli została skonfigurowana — patrz sekcja [Wystawienie w sieci](#wystawienie-w-sieci)).
 
+> **Wersja na iPada (natywna aplikacja)** jest w budowie w katalogu [`ios/`](ios/README.md) — SwiftUI + SpriteKit, docelowo do App Store. Zobacz `ios/README.md` po instrukcje uruchomienia w Xcode.
+
 ## Funkcje
 
 **Świat**

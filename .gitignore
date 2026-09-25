@@ -1,0 +1,9 @@
+# iOS / Xcode
+ios/*.xcodeproj/
+ios/DerivedData/
+ios/build/
+ios/.swiftpm/
+ios/ci-artifacts/
+*.xcuserstate
+xcuserdata/
+.DS_Store
