@@ -21,6 +21,16 @@ enum Iso {
     static func toScene(_ p: CGPoint) -> CGPoint {
         CGPoint(x: p.x, y: -p.y)
     }
+
+    /// Inverse of project(): which tile (rounded to the nearest whole tile) a canvas-convention
+    /// point falls on. Used to turn a tap into a grid coordinate.
+    static func tileForCanvasPoint(_ p: CGPoint) -> (Int, Int) {
+        let a = p.x / (tileWidth / 2)   // tx - ty
+        let b = p.y / (tileHeight / 2)  // tx + ty
+        let tx = (a + b) / 2
+        let ty = (b - a) / 2
+        return (Int(tx.rounded()), Int(ty.rounded()))
+    }
 }
 
 func lerpPt(_ a: CGPoint, _ b: CGPoint, _ t: CGFloat) -> CGPoint {

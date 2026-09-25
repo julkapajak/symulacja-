@@ -1,6 +1,10 @@
-# SimLife na iPada — Faza 1 (świat domu)
+# SimLife na iPada — Faza 2 (ruch i gesty)
 
-To jest natywna aplikacja SwiftUI + SpriteKit, oddzielna od wersji przeglądarkowej w katalogu głównym repo. Faza 0 udowodniła, że cały łańcuch narzędzi (XcodeGen → Xcode → symulator) działa. W Fazie 1 `GameScene.swift` renderuje już prawdziwy dom przeniesiony z `app.js`: 16×9 pól, 5 pokoi (kuchnia, łazienka, sypialnia, salon, ogród) z automatycznie wygenerowanymi ścianami, drzwiami i oknami, startowe meble oraz jednego Sima stojącego w domu.
+To jest natywna aplikacja SwiftUI + SpriteKit, oddzielna od wersji przeglądarkowej w katalogu głównym repo. Faza 0 udowodniła, że cały łańcuch narzędzi (XcodeGen → Xcode → symulator) działa. Faza 1 przeniosła prawdziwy dom z `app.js`: 16×9 pól, 5 pokoi z automatycznie wygenerowanymi ścianami/drzwiami/oknami i starterowe meble. Faza 2 dodaje interakcję:
+
+- **Dotknij pustego pola**, żeby Sim tam poszedł — prawdziwy pathfinding (BFS) omija ściany i meble, tak jak w wersji przeglądarkowej.
+- **Przeciągnij**, żeby przesunąć widok kamery.
+- **Uszczypnij (pinch)**, żeby przybliżyć/oddalić — zoomuje w punkt pod palcami.
 
 Masz MacBooka Air M1 — to wystarczy, żeby zrobić i przetestować całość lokalnie, bez czekania na CI.
 
@@ -26,9 +30,10 @@ open SimLife.xcodeproj
 W Xcode:
 1. Przy przycisku ▶ (Play) w górnym pasku wybierz symulator, np. **iPad Pro 13-inch (M4)**.
 2. Naciśnij ▶ (albo `Cmd+R`).
-3. Po chwili powinieneś zobaczyć: niebieskie niebo ze słońcem, izometryczny dom z pięcioma pokojami (kolorowe podłogi, ściany, okna, dwoje drzwi), startowe meble (lodówka, łóżko, telewizor, itd.) i stojącego Sima.
+3. Po chwili powinieneś zobaczyć: niebieskie niebo ze słońcem, izometryczny dom z pięcioma pokojami (kolorowe podłogi, ściany, okna, dwoje drzwi), startowe meble (lodówka, łóżko, telewizor, itd.) i Sima.
+4. Dotknij dowolnego wolnego pola (na symulatorze: kliknij myszką) — Sim powinien tam dojść, omijając ściany. Przeciągnij, żeby przesunąć widok. Uszczypnij (na symulatorze: przytrzymaj Option i przeciągnij), żeby przybliżyć/oddalić.
 
-Jeśli to widzisz — świat domu działa i możemy przejść do kolejnej fazy: ruchu Sima i gestów kamery (przybliżanie/przesuwanie).
+Jeśli to działa — ruch i kamera są gotowe, możemy przejść do kolejnej fazy: potrzeb, umiejętności, kariery i trybu budowania.
 
 ## Testowanie na prawdziwym iPadzie (opcjonalnie, już teraz)
 

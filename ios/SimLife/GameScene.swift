@@ -1,14 +1,21 @@
 import SpriteKit
 import UIKit
 
-/// Faza 1: prawdziwy świat domu — podłogi, ściany, drzwi, okna, meble startowe i jeden Sim —
-/// przeniesiony z prototypu przeglądarkowego (app.js: ZONES/buildWalls/ITEM_CATALOG/drawFloorTile/
-/// drawWallSolid/drawWallWindow/drawDoorFrame/drawIsoObj). Geometria ścian/podłóg jest przepisana
-/// z JS niemal 1:1 (patrz WorldData.swift / IsoGeometry.swift), więc dom wygląda tak samo jak
-/// w wersji webowej. Ruch, gesty kamery i interakcje to kolejna faza.
-final class GameScene: SKScene {
+/// Faza 1 przeniosła świat domu (podłogi, ściany, drzwi, okna, meble) z prototypu przeglądarkowego.
+/// Faza 2 dodaje interakcję: dotknięcie pustego pola prowadzi Sima tam po prawdziwej ścieżce
+/// (BFS omijający ściany, patrz Pathfinding.swift), a przeciąganie/uszczypnięcie steruje kamerą
+/// SpriteKit (SKCameraNode) — odpowiednik JS-owej warstwy zoom/pan (state.camera / getTransform).
+final class GameScene: SKScene, UIGestureRecognizerDelegate {
 
     private let worldContainer = SKNode()
+    private let cameraNode = SKCameraNode()
+    private var simNode: SimNode!
+
+    private var lastUpdateTime: TimeInterval = 0
+    private var worldHalfWidth: CGFloat = 400
+    private var worldHalfHeight: CGFloat = 300
+    private var minCameraScale: CGFloat = 1
+    private var maxCameraScale: CGFloat = 4
 
     override func didMove(to view: SKView) {
         backgroundColor = SKColor(hex: "#05070f")
@@ -20,6 +27,109 @@ final class GameScene: SKScene {
         buildWorld()
         recenterWorld()
         addChild(worldContainer)
+
+        addChild(cameraNode)
+        camera = cameraNode
+        recalculateCameraBounds()
+        cameraNode.setScale(maxCameraScale)
+        cameraNode.position = .zero
+
+        let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
+        let pinch = UIPinchGestureRecognizer(target: self, action: #selector(handlePinch(_:)))
+        pan.delegate = self
+        pinch.delegate = self
+        view.addGestureRecognizer(tap)
+        view.addGestureRecognizer(pan)
+        view.addGestureRecognizer(pinch)
+    }
+
+    override func didChangeSize(_ oldSize: CGSize) {
+        super.didChangeSize(oldSize)
+        recalculateCameraBounds()
+    }
+
+    override func update(_ currentTime: TimeInterval) {
+        defer { lastUpdateTime = currentTime }
+        guard lastUpdateTime > 0 else { return }
+        let dt = min(currentTime - lastUpdateTime, 0.1)
+        simNode.advance(dt: CGFloat(dt))
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        true
+    }
+
+    // MARK: - Camera
+
+    private func recalculateCameraBounds() {
+        guard let view else { return }
+        let vw = max(view.bounds.width, 1)
+        let vh = max(view.bounds.height, 1)
+
+        let isoMinX = Iso.project(0, World.rows - 1).x
+        let isoMaxX = Iso.project(World.cols - 1, 0).x
+        let isoMaxY = Iso.project(World.cols - 1, World.rows - 1).y
+        let worldW = isoMaxX - isoMinX + Iso.tileWidth + 60
+        let worldH = isoMaxY + World.wallHeight + 140
+
+        worldHalfWidth = worldW / 2
+        worldHalfHeight = worldH / 2
+
+        let fitScale = max(worldW / vw, worldH / vh)
+        maxCameraScale = fitScale
+        minCameraScale = fitScale / 4.5
+
+        cameraNode.xScale = min(maxCameraScale, max(minCameraScale, cameraNode.xScale))
+        cameraNode.yScale = cameraNode.xScale
+        clampCameraPosition()
+    }
+
+    private func clampCameraPosition() {
+        let limX = worldHalfWidth * 1.15
+        let limY = worldHalfHeight * 1.15
+        cameraNode.position.x = min(limX, max(-limX, cameraNode.position.x))
+        cameraNode.position.y = min(limY, max(-limY, cameraNode.position.y))
+    }
+
+    @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
+        guard let view else { return }
+        let translation = gesture.translation(in: view)
+        cameraNode.position.x -= translation.x * cameraNode.xScale
+        cameraNode.position.y += translation.y * cameraNode.yScale
+        gesture.setTranslation(.zero, in: view)
+        clampCameraPosition()
+    }
+
+    @objc private func handlePinch(_ gesture: UIPinchGestureRecognizer) {
+        guard let view else { return }
+        let location = gesture.location(in: view)
+        let before = convertPoint(fromView: location)
+
+        let newScale = min(maxCameraScale, max(minCameraScale, cameraNode.xScale / gesture.scale))
+        cameraNode.setScale(newScale)
+
+        let after = convertPoint(fromView: location)
+        cameraNode.position.x += before.x - after.x
+        cameraNode.position.y += before.y - after.y
+
+        gesture.scale = 1
+        clampCameraPosition()
+    }
+
+    // MARK: - Tap to move
+
+    @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
+        guard gesture.state == .ended, let view else { return }
+        let scenePoint = convertPoint(fromView: gesture.location(in: view))
+        let localPoint = worldContainer.convert(scenePoint, from: self)
+        let canvasPoint = CGPoint(x: localPoint.x, y: -localPoint.y)
+        let (tx, ty) = Iso.tileForCanvasPoint(canvasPoint)
+
+        guard Pathfinding.isWalkable(tx, ty) else { return }
+        let start = (x: Int(simNode.gridX.rounded()), y: Int(simNode.gridY.rounded()))
+        guard let path = Pathfinding.findPath(from: start, to: (tx, ty)) else { return }
+        simNode.path = path
     }
 
     // MARK: - World assembly
@@ -49,7 +159,8 @@ final class GameScene: SKScene {
             }
         }
 
-        worldContainer.addChild(makeSim(x: 3, y: 3, color: SKColor(hex: "#ff6f59"), name: "Sim"))
+        simNode = SimNode(startX: 3, startY: 3, color: SKColor(hex: "#ff6f59"), name: "Sim")
+        worldContainer.addChild(simNode)
     }
 
     private func recenterWorld() {
@@ -229,42 +340,6 @@ final class GameScene: SKScene {
         container.addChild(icon)
 
         container.zPosition = 2000 + CGFloat(placement.x + placement.y)
-        return container
-    }
-
-    // MARK: - Sim
-
-    private func makeSim(x: Int, y: Int, color: SKColor, name: String) -> SKNode {
-        let c = Iso.project(x, y)
-        let container = SKNode()
-
-        let shadow = SKShapeNode(ellipseOf: CGSize(width: Iso.tileWidth * 0.5, height: Iso.tileHeight * 0.45))
-        shadow.fillColor = SKColor.black.withAlphaComponent(0.28)
-        shadow.strokeColor = .clear
-        shadow.position = Iso.toScene(c)
-        container.addChild(shadow)
-
-        let bodyHeight: CGFloat = 46
-        let body = SKShapeNode(rectOf: CGSize(width: 16, height: bodyHeight), cornerRadius: 7)
-        body.fillColor = color
-        body.strokeColor = SKColor.black.withAlphaComponent(0.25)
-        body.position = Iso.toScene(CGPoint(x: c.x, y: c.y - bodyHeight / 2 - 4))
-        container.addChild(body)
-
-        let head = SKShapeNode(circleOfRadius: 9)
-        head.fillColor = SKColor(hex: "#f2c9a0")
-        head.strokeColor = SKColor.black.withAlphaComponent(0.25)
-        head.position = Iso.toScene(CGPoint(x: c.x, y: c.y - bodyHeight - 13))
-        container.addChild(head)
-
-        let label = SKLabelNode(text: name)
-        label.fontName = "AvenirNext-Bold"
-        label.fontSize = 12
-        label.fontColor = .white
-        label.position = Iso.toScene(CGPoint(x: c.x, y: c.y - bodyHeight - 34))
-        container.addChild(label)
-
-        container.zPosition = 2000 + CGFloat(x + y) + 0.5
         return container
     }
 

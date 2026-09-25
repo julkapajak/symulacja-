@@ -71,6 +71,17 @@ enum World {
 
     static let walls: [WallSpec] = buildWalls()
 
+    /// Edge keys ("tx,ty,N" / "tx,ty,W") that block movement across them — every solid wall,
+    /// mirroring app.js's BLOCKED_EDGES. Doors and windows never block.
+    static let blockedEdges: Set<String> = {
+        var set = Set<String>()
+        for wall in walls where wall.kind == .solid {
+            let edgeChar = wall.edge == .north ? "N" : "W"
+            set.insert("\(wall.tx),\(wall.ty),\(edgeChar)")
+        }
+        return set
+    }()
+
     private static func buildWalls() -> [WallSpec] {
         var result: [WallSpec] = []
         for ty in 0..<rows {
