@@ -21,8 +21,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer || sudo xcode-select -p
+      - name: Show selected Xcode
+        run: |
+          xcode-select -p
+          xcodebuild -version
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -42,25 +44,28 @@ jobs:
           echo "device_name=$NAME" >> "$GITHUB_OUTPUT"
 
       - name: Build for simulator
+        id: build
         run: |
+          set -o pipefail
           xcodebuild build \
-            -project SimLife.xcodeproj \
-            -scheme SimLife \
-            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.device_name }}" \
-            CODE_SIGNING_ALLOWED=NO | xcpretty || xcodebuild build \
             -project SimLife.xcodeproj \
             -scheme SimLife \
             -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.device_name }}" \
             CODE_SIGNING_ALLOWED=NO
 
       - name: Boot simulator and capture a screenshot
-        if: success()
+        if: steps.build.outcome == 'success'
         run: |
           set -e
           DEVICE_ID=$(xcrun simctl list devices available | grep "${{ steps.sim.outputs.device_name }}" | head -n 1 | grep -oE '[0-9A-F-]{36}')
           xcrun simctl boot "$DEVICE_ID" || true
           xcrun simctl bootstatus "$DEVICE_ID" -b
           APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "SimLife.app" -path "*iphonesimulator*" | head -n 1)
+          if [ -z "$APP_PATH" ]; then
+            echo "::error::Could not locate built SimLife.app under DerivedData"
+            exit 1
+          fi
+          echo "Installing $APP_PATH"
           xcrun simctl install "$DEVICE_ID" "$APP_PATH"
           xcrun simctl launch "$DEVICE_ID" com.simlife.app.SimLife
           sleep 3
@@ -68,7 +73,7 @@ jobs:
           xcrun simctl io "$DEVICE_ID" screenshot ../ci-artifacts/simlife-screenshot.png
 
       - name: Upload screenshot
-        if: success()
+        if: steps.build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: simlife-simulator-screenshot
