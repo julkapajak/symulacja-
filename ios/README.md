@@ -1,6 +1,6 @@
-# SimLife na iPada — Faza 0 (szkielet projektu)
+# SimLife na iPada — Faza 1 (świat domu)
 
-To jest natywna aplikacja SwiftUI + SpriteKit, oddzielna od wersji przeglądarkowej w katalogu głównym repo. Na razie (Faza 0) scena jest celowo minimalna — jej jedynym celem jest udowodnienie, że cały łańcuch (XcodeGen → Xcode → symulator) działa, zanim zaczniemy przenosić właściwą grę.
+To jest natywna aplikacja SwiftUI + SpriteKit, oddzielna od wersji przeglądarkowej w katalogu głównym repo. Faza 0 udowodniła, że cały łańcuch narzędzi (XcodeGen → Xcode → symulator) działa. W Fazie 1 `GameScene.swift` renderuje już prawdziwy dom przeniesiony z `app.js`: 16×9 pól, 5 pokoi (kuchnia, łazienka, sypialnia, salon, ogród) z automatycznie wygenerowanymi ścianami, drzwiami i oknami, startowe meble oraz jednego Sima stojącego w domu.
 
 Masz MacBooka Air M1 — to wystarczy, żeby zrobić i przetestować całość lokalnie, bez czekania na CI.
 
@@ -26,9 +26,9 @@ open SimLife.xcodeproj
 W Xcode:
 1. Przy przycisku ▶ (Play) w górnym pasku wybierz symulator, np. **iPad Pro 13-inch (M4)**.
 2. Naciśnij ▶ (albo `Cmd+R`).
-3. Po chwili powinieneś zobaczyć: niebieskie niebo (gradient), zielone izometryczne pola w stylu naszej gry przeglądarkowej, i napis „SimLife — pipeline dziala”.
+3. Po chwili powinieneś zobaczyć: niebieskie niebo ze słońcem, izometryczny dom z pięcioma pokojami (kolorowe podłogi, ściany, okna, dwoje drzwi), startowe meble (lodówka, łóżko, telewizor, itd.) i stojącego Sima.
 
-Jeśli to widzisz — cały łańcuch narzędzi działa i możemy przenosić właściwą grę.
+Jeśli to widzisz — świat domu działa i możemy przejść do kolejnej fazy: ruchu Sima i gestów kamery (przybliżanie/przesuwanie).
 
 ## Testowanie na prawdziwym iPadzie (opcjonalnie, już teraz)
 
