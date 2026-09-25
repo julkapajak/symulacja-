@@ -21,13 +21,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Show selected Xcode
+      - name: Select the newest available Xcode
         run: |
+          echo "Installed Xcode versions on this runner:"
+          ls /Applications | grep -i '^Xcode' || true
+          LATEST=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -n 1)
+          if [ -n "$LATEST" ]; then
+            echo "Selecting $LATEST"
+            sudo xcode-select -s "$LATEST/Contents/Developer"
+          else
+            echo "No versioned Xcode_*.app found, keeping the current default."
+          fi
           xcode-select -p
           xcodebuild -version
 
       - name: Install XcodeGen
-        run: brew install xcodegen
+        run: |
+          brew install xcodegen
+          xcodegen version
 
       - name: Generate Xcode project
         run: xcodegen generate
