@@ -43,17 +43,9 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
-      - name: Pick an available iPad simulator
-        id: sim
-        run: |
-          NAME=$(xcrun simctl list devices available | grep -o 'iPad[^(]*' | head -n 1 | sed 's/[[:space:]]*$//')
-          if [ -z "$NAME" ]; then
-            echo "No iPad simulator found, falling back to any available iPhone simulator"
-            NAME=$(xcrun simctl list devices available | grep -o 'iPhone[^(]*' | head -n 1 | sed 's/[[:space:]]*$//')
-          fi
-          echo "Using simulator: $NAME"
-          echo "device_name=$NAME" >> "$GITHUB_OUTPUT"
-
+      # Building against a generic simulator destination avoids ever having to
+      # match an exact device name/runtime string, which is brittle (device
+      # lists vary by runner image and change over time).
       - name: Build for simulator
         id: build
         run: |
@@ -61,14 +53,46 @@ jobs:
           xcodebuild build \
             -project SimLife.xcodeproj \
             -scheme SimLife \
-            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.device_name }}" \
+            -destination 'generic/platform=iOS Simulator' \
             CODE_SIGNING_ALLOWED=NO
+
+      # Only for taking a screenshot do we need one concrete, bootable device.
+      # Parsed from `simctl ... -j` (JSON) instead of grepping human-readable
+      # text, so this doesn't depend on exact device-name formatting either.
+      - name: Pick a concrete iPad simulator to boot
+        if: steps.build.outcome == 'success'
+        id: sim
+        run: |
+          python3 - <<'PYEOF'
+          import json, os, subprocess
+
+          data = json.loads(subprocess.check_output(
+              ["xcrun", "simctl", "list", "devices", "available", "-j"]
+          ))
+
+          def pick(predicate):
+              for devices in data["devices"].values():
+                  for d in devices:
+                      if d.get("isAvailable") and predicate(d):
+                          return d
+              return None
+
+          device = pick(lambda d: "iPad" in d.get("name", "")) or pick(lambda d: True)
+
+          if device is None:
+              raise SystemExit("No available simulator devices found at all.")
+
+          print(f"Using simulator: {device['name']} ({device['udid']})")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"device_udid={device['udid']}\n")
+              f.write(f"device_name={device['name']}\n")
+          PYEOF
 
       - name: Boot simulator and capture a screenshot
         if: steps.build.outcome == 'success'
         run: |
           set -e
-          DEVICE_ID=$(xcrun simctl list devices available | grep "${{ steps.sim.outputs.device_name }}" | head -n 1 | grep -oE '[0-9A-F-]{36}')
+          DEVICE_ID="${{ steps.sim.outputs.device_udid }}"
           xcrun simctl boot "$DEVICE_ID" || true
           xcrun simctl bootstatus "$DEVICE_ID" -b
           APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "SimLife.app" -path "*iphonesimulator*" | head -n 1)
