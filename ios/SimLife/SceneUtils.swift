@@ -31,6 +31,16 @@ struct SeededRNG {
     }
 }
 
+func normalized(_ v: SCNVector3) -> SCNVector3 {
+    let length = (v.x * v.x + v.y * v.y + v.z * v.z).squareRoot()
+    guard length > 0 else { return v }
+    return SCNVector3(v.x / length, v.y / length, v.z / length)
+}
+
+func cross(_ a: SCNVector3, _ b: SCNVector3) -> SCNVector3 {
+    SCNVector3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x)
+}
+
 /// A flat emoji/text label that always faces the camera — used for furniture icons and the
 /// Sim's name tag, since SceneKit has no built-in "2D sprite in 3D space" primitive.
 func makeBillboardLabel(_ text: String, size: CGFloat = 0.3, color: UIColor = .white) -> SCNNode {

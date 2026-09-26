@@ -122,12 +122,28 @@ final class GameCoordinator: NSObject, SCNSceneRendererDelegate, UIGestureRecogn
         updateCameraTransform()
     }
 
+    /// Positions the camera on a sphere around the house and points it at the house's center —
+    /// built by hand (rather than SCNNode.look(at:)) so the "up" direction is always derived
+    /// from world-up via cross products, guaranteeing a level, roll-free horizon at every yaw.
     private func updateCameraTransform() {
         let x = radius * cos(pitch) * sin(yaw)
         let z = radius * cos(pitch) * cos(yaw)
         let y = radius * sin(pitch)
-        cameraNode.position = SCNVector3(x, y, z)
-        cameraNode.look(at: SCNVector3(0, 0.8, 0))
+        let position = SCNVector3(x, y, z)
+
+        let target = SCNVector3(0, 0.8, 0)
+        let forward = normalized(SCNVector3(target.x - position.x, target.y - position.y, target.z - position.z))
+        let worldUp = SCNVector3(0, 1, 0)
+        let right = normalized(cross(forward, worldUp))
+        let up = cross(right, forward)
+
+        // SceneKit cameras look down their local -Z axis, with local +X = right, +Y = up.
+        cameraNode.transform = SCNMatrix4(
+            m11: right.x, m12: right.y, m13: right.z, m14: 0,
+            m21: up.x, m22: up.y, m23: up.z, m24: 0,
+            m31: -forward.x, m32: -forward.y, m33: -forward.z, m34: 0,
+            m41: position.x, m42: position.y, m43: position.z, m44: 1
+        )
     }
 
     // MARK: - Gestures
