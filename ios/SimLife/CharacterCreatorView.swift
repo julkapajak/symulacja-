@@ -1,11 +1,11 @@
 import SwiftUI
 
 /// Shown once, before the very first game session (ContentView skips it when a save already
-/// exists). Mirrors app.js's #charCreator modal: name, color, trait and — since aspirations are
-/// native-only so far — the life goal, all chosen up front instead of being randomly assigned.
+/// exists). Mirrors app.js's #charCreator modal, extended with real appearance choices (natural
+/// skin tones, hair, clothing color, body type) instead of a single arbitrary body color.
 struct CharacterCreatorView: View {
     @Binding var name: String
-    @Binding var colorHex: String
+    @Binding var appearance: CharacterAppearance
     @Binding var trait: String?
     @Binding var aspiration: String
     let onStart: () -> Void
@@ -25,14 +25,34 @@ struct CharacterCreatorView: View {
                             .frame(maxWidth: 320)
                     }
 
-                    section(title: "Kolor") {
-                        HStack(spacing: 14) {
-                            ForEach(CharacterCatalog.colors, id: \.self) { hex in
-                                Circle()
-                                    .fill(Color(hex: hex))
-                                    .frame(width: 40, height: 40)
-                                    .overlay(Circle().stroke(.white, lineWidth: colorHex == hex ? 3 : 0))
-                                    .onTapGesture { colorHex = hex }
+                    section(title: "Odcień skóry") {
+                        swatchRow(CharacterCatalog.skinTones, selected: appearance.skinTone) { appearance.skinTone = $0 }
+                    }
+
+                    section(title: "Kolor włosów") {
+                        swatchRow(CharacterCatalog.hairColors, selected: appearance.hairColor) { appearance.hairColor = $0 }
+                    }
+
+                    section(title: "Fryzura") {
+                        VStack(spacing: 8) {
+                            ForEach(CharacterCatalog.hairStyles, id: \.self) { key in
+                                pickRow(title: CharacterCatalog.hairStyleLabels[key] ?? key, subtitle: nil, isSelected: appearance.hairStyle == key) {
+                                    appearance.hairStyle = key
+                                }
+                            }
+                        }
+                    }
+
+                    section(title: "Kolor ubrań") {
+                        swatchRow(CharacterCatalog.clothingColors, selected: appearance.clothingColor) { appearance.clothingColor = $0 }
+                    }
+
+                    section(title: "Sylwetka") {
+                        VStack(spacing: 8) {
+                            ForEach(CharacterCatalog.bodyTypeOrder, id: \.self) { key in
+                                pickRow(title: CharacterCatalog.bodyTypeLabels[key] ?? key, subtitle: nil, isSelected: appearance.bodyType == key) {
+                                    appearance.bodyType = key
+                                }
                             }
                         }
                     }
@@ -85,7 +105,19 @@ struct CharacterCreatorView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func pickRow(icon: String? = nil, title: String, subtitle: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+    private func swatchRow(_ hexColors: [String], selected: String, onPick: @escaping (String) -> Void) -> some View {
+        HStack(spacing: 14) {
+            ForEach(hexColors, id: \.self) { hex in
+                Circle()
+                    .fill(Color(hex: hex))
+                    .frame(width: 40, height: 40)
+                    .overlay(Circle().stroke(.white, lineWidth: selected == hex ? 3 : 0.5))
+                    .onTapGesture { onPick(hex) }
+            }
+        }
+    }
+
+    private func pickRow(icon: String? = nil, title: String, subtitle: String?, isSelected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 10) {
                 if let icon {
@@ -93,7 +125,9 @@ struct CharacterCreatorView: View {
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title).font(.subheadline.bold())
-                    Text(subtitle).font(.caption)
+                    if let subtitle {
+                        Text(subtitle).font(.caption)
+                    }
                 }
                 Spacer()
             }

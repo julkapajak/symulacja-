@@ -1,4 +1,4 @@
-# SimLife na iPada — Faza 8 (prawdziwe 3D)
+# SimLife na iPada — Faza 9 (personalizacja wyglądu)
 
 To jest natywna aplikacja SwiftUI, oddzielna od wersji przeglądarkowej w katalogu głównym repo. Faza 0 udowodniła, że cały łańcuch narzędzi (XcodeGen → Xcode → symulator) działa. Fazy 1-7 zbudowały pełną rozgrywkę w silniku 2D (SpriteKit, izometryczny rzut jak w wersji przeglądarkowej). **Faza 8 to duża zmiana architektoniczna: przepisanie całego renderowania na prawdziwe 3D (SceneKit)** z kamerą, którą można swobodnie obracać wokół domu (pełne 360°) i przybliżać/oddalać — na życzenie, zamiast stałego kąta izometrycznego. Cała rozgrywka (potrzeby, akcje, kariera, aspiracje, tryb budowania, zapis) działa identycznie jak wcześniej — zmienił się tylko sposób rysowania i oglądania świata.
 
@@ -28,7 +28,19 @@ Faza 5 dodaje **tryb budowania**:
 
 Faza 6 dodała **aspiracje** — cel życiowy z jednorazową nagrodą pieniężną po spełnieniu (Mistrz Kuchni, Rekin Biznesu, Dusza Towarzystwa, Żelazna Kondycja), widoczny jako chip z paskiem postępu w HUD-zie.
 
-Faza 7 dodaje **kreator postaci** — przy pierwszym uruchomieniu (bez wcześniejszego zapisu) gra pyta o imię, kolor, cechę charakteru (Towarzyski/Pracowity/Leniwy/Imprezowicz — każda ma realny wpływ na tempo opadania potrzeb albo zarobki) i aspirację życiową, zamiast przydzielać je losowo. Jeśli zapis już istnieje, kreator jest pomijany i gra wraca prosto do zapisanego Sima.
+Faza 7 dodała **kreator postaci** — przy pierwszym uruchomieniu (bez wcześniejszego zapisu) gra pyta o imię, cechę charakteru i aspirację życiową, zamiast przydzielać je losowo. Jeśli zapis już istnieje, kreator jest pomijany.
+
+Faza 8 przepisała renderowanie na prawdziwe 3D (SceneKit) z kamerą obracaną o 360°.
+
+Faza 9 dodaje **prawdziwą personalizację wyglądu** — kreator postaci pyta teraz też o:
+- **Naturalny odcień skóry** (6 realistycznych tonów, zamiast dowolnego jaskrawego koloru).
+- **Kolor i fryzurę włosów** (Łysy/Krótkie/Kok/Długie).
+- **Kolor ubrań** (osobno od skóry — ubrania mogą być dowolnego koloru).
+- **Sylwetkę** (Szczupła/Przeciętna/Postawna — realnie zmienia grubość Sima).
+
+Sim ma też teraz proste oczy (twarz przestała być pustą kulką). Wygląd zapisuje się razem z resztą stanu gry, więc wraca po wznowieniu — wcześniej (Fazy 1-8) wygląd wracał zawsze do domyślnego po wczytaniu zapisu, co było przeoczeniem naprawionym przy okazji tej fazy.
+
+> **Uwaga:** ponieważ zmienił się format zapisu (doszedł wygląd), stary zapis z Faz 1-8 nie wczyta się poprawnie — gra po prostu pokaże kreator postaci od nowa, tak jakby to było pierwsze uruchomienie. To nie błąd, tylko jednorazowy reset przy zmianie struktury zapisu.
 
 Masz MacBooka Air M1 — to wystarczy, żeby zrobić i przetestować całość lokalnie, bez czekania na CI.
 
@@ -54,15 +66,16 @@ open SimLife.xcodeproj
 W Xcode:
 1. Przy przycisku ▶ (Play) w górnym pasku wybierz symulator, np. **iPad Pro 13-inch (M4)**.
 2. Naciśnij ▶ (albo `Cmd+R`).
-3. Ponieważ masz już zapisaną grę z poprzednich testów, od razu zobaczysz dom (kreator postaci pomija się, gdy zapis już istnieje). Żeby zobaczyć sam kreator, usuń aplikację z symulatora (przytrzymaj ikonę → Usuń) i uruchom ją ponownie od zera.
-4. Powinnaś zobaczyć: niebieskie tło, prawdziwy trójwymiarowy dom (bryły ścian, kolorowe podłogi per pokój, meble jako kolorowe pudełka z unoszącą się nad nimi ikoną) i stojącego Sima (kapsuła + kulista głowa) w wybranym kolorze.
+3. Ponieważ format zapisu się zmienił w tej fazie, stary zapis się nie wczyta i od razu zobaczysz kreator postaci — pole na imię, kółka kolorów skóry/włosów/ubrań, listę fryzur, sylwetek, cech charakteru i aspiracji, a na dole przycisk "Zacznij grę".
+4. Po dotknięciu "Zacznij grę" powinnaś zobaczyć: niebieskie tło, prawdziwy trójwymiarowy dom (bryły ścian, kolorowe podłogi per pokój, meble jako kolorowe pudełka z unoszącą się nad nimi ikoną) i stojącego Sima (kapsuła w kolorze ubrań + głowa w wybranym odcieniu skóry, z oczami i włosami) w wybranym wyglądzie.
 5. **Przeciągnij palcem/myszką** po ekranie — kamera powinna obracać się wokół domu w poziomie (pełne 360°), przy zawsze takim samym kącie patrzenia w dół, jak w The Sims. **Uszczypnij** (na symulatorze: Option + przeciągnięcie) — przybliżenie/oddalenie.
 6. Dotknij dowolnego wolnego pola podłogi — Sim powinien tam dojść, omijając ściany. Dotknij lodówki, łóżka, prysznica, TV albo komputera — Sim podejdzie i zacznie z nich korzystać (dymek z komunikatem, pasek potrzeby rośnie). Dotknij samochodu w godzinach 8:00–18:00, żeby poszedł do pracy.
 7. Zamknij i ponownie uruchom aplikację — stan gry powinien zostać taki, jaki był.
 8. Dotknij 🔨 w prawym górnym rogu, wybierz mebel z paska na dole, dotknij puste pole żeby go postawić. Dotknij dowolny mebel (nadal w trybie budowania), żeby go sprzedać za połowę ceny.
 9. Obok pieniędzy/dnia/godziny w górnym pasku powinien być widoczny chip z ikoną i paskiem postępu aspiracji.
+10. Zamknij i ponownie uruchom aplikację — Sim powinien wrócić z dokładnie takim wyglądem, jaki wybrałaś w kreatorze (nie zresetować się do domyślnego).
 
-Jeśli to działa — mamy solidny szkielet gry w prawdziwym 3D. Dalej w planie: bogata personalizacja wyglądu Sima (naturalne odcienie skóry, włosy, ubrania, sylwetka) i współlokator (drugi Sim + relacje).
+Jeśli to działa — mamy solidny szkielet gry w prawdziwym 3D z prawdziwą personalizacją. Dalej w planie: współlokator (drugi Sim + relacje).
 
 ## Testowanie na prawdziwym iPadzie (opcjonalnie, już teraz)
 

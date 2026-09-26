@@ -13,6 +13,7 @@ struct SimSaveData: Codable {
     var aspiration: String?
     var aspirationDone: Bool
     var trait: String?
+    var appearance: CharacterAppearance
 }
 
 struct GameSaveData: Codable {

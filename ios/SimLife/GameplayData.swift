@@ -65,9 +65,7 @@ enum TraitCatalog {
     ]
 }
 
-enum CharacterCatalog {
-    static let colors = ["#ff6f59", "#3fa796", "#f6c445", "#7b6cf6", "#e85ea0", "#4fb0e8"]
-}
+// Character appearance (skin/hair/clothing/body type) lives in CharacterAppearance.swift.
 
 /// What tapping a piece of furniture does. `need` + `gain` restore a need over `durationMinutes`;
 /// `side` are secondary effects (e.g. a shower costs a little energy); `isWork` is the job action.

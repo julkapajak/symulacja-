@@ -53,7 +53,7 @@ final class GameCoordinator: NSObject, SCNSceneRendererDelegate, UIGestureRecogn
 
     // Character creator choices, applied when building a brand new Sim (see buildWorld()).
     private var characterName = "Sim"
-    private var characterColorHex = "#ff6f59"
+    private var characterAppearance = CharacterAppearance.default
     private var characterTrait: String?
     private var characterAspiration: String?
 
@@ -63,9 +63,9 @@ final class GameCoordinator: NSObject, SCNSceneRendererDelegate, UIGestureRecogn
         NotificationCenter.default.removeObserver(self)
     }
 
-    func configureNewCharacter(name: String, colorHex: String, trait: String?, aspiration: String) {
+    func configureNewCharacter(name: String, appearance: CharacterAppearance, trait: String?, aspiration: String) {
         characterName = name.isEmpty ? "Sim" : name
-        characterColorHex = colorHex
+        characterAppearance = appearance
         characterTrait = trait
         characterAspiration = aspiration
     }
@@ -372,7 +372,7 @@ final class GameCoordinator: NSObject, SCNSceneRendererDelegate, UIGestureRecogn
             addFurnitureNode(for: item)
         }
 
-        simNode = SimNode(startX: 3, startY: 3, color: UIColor(hex: characterColorHex), name: characterName)
+        simNode = SimNode(startX: 3, startY: 3, appearance: characterAppearance, name: characterName)
         simNode.trait = characterTrait
         if let aspiration = characterAspiration {
             simNode.aspiration = aspiration

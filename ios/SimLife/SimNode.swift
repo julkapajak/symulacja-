@@ -59,14 +59,25 @@ final class SimNode: SCNNode {
     /// immediately.
     var buildState: BuildState!
 
-    init(startX: Int, startY: Int, color: UIColor, name: String) {
+    var appearance: CharacterAppearance
+    private let visualsRoot = SCNNode()
+
+    init(startX: Int, startY: Int, appearance: CharacterAppearance, name: String) {
         gridX = Float(startX)
         gridY = Float(startY)
         simName = name
         needs = Dictionary(uniqueKeysWithValues: NeedKeys.all.map { ($0, 85.0) })
         aspiration = AspirationCatalog.all.keys.randomElement()
+        self.appearance = appearance
         super.init()
-        buildVisuals(color: color, name: name)
+
+        addChildNode(visualsRoot)
+        rebuildVisuals()
+
+        let label = makeBillboardLabel(name, size: 0.22)
+        label.position = SCNVector3(0, 1.2, 0)
+        addChildNode(label)
+
         updateWorldPosition()
     }
 
@@ -74,23 +85,83 @@ final class SimNode: SCNNode {
         fatalError("init(coder:) has not been implemented")
     }
 
-    private func buildVisuals(color: UIColor, name: String) {
+    /// Replaces the whole body with fresh geometry for the current `appearance` — called on
+    /// creation and again when a save is loaded (a save's appearance can differ from whatever the
+    /// node was built with by default).
+    func rebuildVisuals() {
+        visualsRoot.childNodes.forEach { $0.removeFromParentNode() }
+
+        let scale = CGFloat(CharacterCatalog.bodyTypeScale[appearance.bodyType] ?? 1.0)
         let bodyHeight: CGFloat = 0.7
-        let body = SCNCapsule(capRadius: 0.16, height: bodyHeight)
-        body.firstMaterial?.diffuse.contents = color
+        let capRadius: CGFloat = 0.16 * scale
+        let headRadius: CGFloat = 0.15
+
+        let body = SCNCapsule(capRadius: capRadius, height: bodyHeight)
+        body.firstMaterial?.diffuse.contents = UIColor(hex: appearance.clothingColor)
         let bodyNode = SCNNode(geometry: body)
         bodyNode.position = SCNVector3(0, Float(bodyHeight / 2) + 0.05, 0)
-        addChildNode(bodyNode)
+        visualsRoot.addChildNode(bodyNode)
 
-        let head = SCNSphere(radius: 0.15)
-        head.firstMaterial?.diffuse.contents = UIColor(hex: "#f2c9a0")
+        let head = SCNSphere(radius: headRadius)
+        head.firstMaterial?.diffuse.contents = UIColor(hex: appearance.skinTone)
         let headNode = SCNNode(geometry: head)
-        headNode.position = SCNVector3(0, Float(bodyHeight) + 0.05 + 0.15, 0)
-        addChildNode(headNode)
+        let headY = Float(bodyHeight) + 0.05 + Float(headRadius)
+        headNode.position = SCNVector3(0, headY, 0)
+        visualsRoot.addChildNode(headNode)
 
-        let label = makeBillboardLabel(name, size: 0.22)
-        label.position = SCNVector3(0, Float(bodyHeight) + 0.5, 0)
-        addChildNode(label)
+        for side: Float in [-1, 1] {
+            let eye = SCNSphere(radius: 0.02)
+            eye.firstMaterial?.diffuse.contents = UIColor(hex: "#2b2b2b")
+            eye.firstMaterial?.lightingModel = .constant // stays visibly dark regardless of light angle
+            let eyeNode = SCNNode(geometry: eye)
+            eyeNode.position = SCNVector3(0.06 * side, headY + 0.01, Float(headRadius) - 0.02)
+            visualsRoot.addChildNode(eyeNode)
+        }
+
+        if let hair = makeHair(style: appearance.hairStyle, colorHex: appearance.hairColor, headRadius: headRadius, headY: headY) {
+            visualsRoot.addChildNode(hair)
+        }
+    }
+
+    private func makeHair(style: String, colorHex: String, headRadius: CGFloat, headY: Float) -> SCNNode? {
+        let color = UIColor(hex: colorHex)
+
+        func capNode() -> SCNNode {
+            let cap = SCNSphere(radius: headRadius * 1.05)
+            cap.firstMaterial?.diffuse.contents = color
+            let node = SCNNode(geometry: cap)
+            node.position = SCNVector3(0, headY + Float(headRadius) * 0.15, 0)
+            node.scale = SCNVector3(1, 0.55, 1)
+            return node
+        }
+
+        switch style {
+        case "short":
+            return capNode()
+
+        case "bun":
+            let container = SCNNode()
+            container.addChildNode(capNode())
+            let bun = SCNSphere(radius: headRadius * 0.35)
+            bun.firstMaterial?.diffuse.contents = color
+            let bunNode = SCNNode(geometry: bun)
+            bunNode.position = SCNVector3(0, headY + Float(headRadius) * 0.5, -Float(headRadius) * 0.7)
+            container.addChildNode(bunNode)
+            return container
+
+        case "long":
+            let container = SCNNode()
+            container.addChildNode(capNode())
+            let strand = SCNCapsule(capRadius: headRadius * 0.35, height: headRadius * 1.6)
+            strand.firstMaterial?.diffuse.contents = color
+            let strandNode = SCNNode(geometry: strand)
+            strandNode.position = SCNVector3(0, headY - Float(headRadius) * 0.5, -Float(headRadius) * 0.6)
+            container.addChildNode(strandNode)
+            return container
+
+        default: // "bald"
+            return nil
+        }
     }
 
     func updateWorldPosition() {
@@ -306,12 +377,15 @@ final class SimNode: SCNNode {
         SimSaveData(
             name: simName, gridX: Double(gridX), gridY: Double(gridY),
             needs: needs, skills: skills, jobLevel: jobLevel, shiftsWorked: shiftsWorked,
-            aspiration: aspiration, aspirationDone: aspirationDone, trait: trait
+            aspiration: aspiration, aspirationDone: aspirationDone, trait: trait, appearance: appearance
         )
     }
 
     /// Restores a save onto this node, teleporting it (no walk animation) to the saved tile and
     /// clearing any in-progress path/action, since the path/action referred to the old session.
+    /// Also rebuilds the visuals for the saved appearance — without this, a returning player
+    /// would always see whatever default look the Sim happened to be constructed with that
+    /// session, not the one they actually chose.
     func applySaveData(_ data: SimSaveData) {
         gridX = Float(data.gridX)
         gridY = Float(data.gridY)
@@ -322,6 +396,8 @@ final class SimNode: SCNNode {
         aspiration = data.aspiration
         aspirationDone = data.aspirationDone
         trait = data.trait
+        appearance = data.appearance
+        rebuildVisuals()
         cancelCurrentActivity()
         updateWorldPosition()
     }

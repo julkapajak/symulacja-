@@ -9,10 +9,10 @@ struct ContentView: View {
     @State private var coordinator = GameCoordinator()
 
     // The creator only ever runs once per install: if a save already exists, there's already a
-    // Sim with a name/color/trait/aspiration to resume, so we skip straight to the game.
+    // Sim with a name/appearance/trait/aspiration to resume, so we skip straight to the game.
     @State private var needsCharacterCreation = SaveStore.load() == nil
     @State private var draftName = ""
-    @State private var draftColorHex = CharacterCatalog.colors[0]
+    @State private var draftAppearance = CharacterAppearance.default
     @State private var draftTrait: String?
     @State private var draftAspiration = AspirationCatalog.all.keys.sorted().first ?? "chef"
 
@@ -28,9 +28,9 @@ struct ContentView: View {
 
                 if needsCharacterCreation {
                     CharacterCreatorView(
-                        name: $draftName, colorHex: $draftColorHex, trait: $draftTrait, aspiration: $draftAspiration
+                        name: $draftName, appearance: $draftAppearance, trait: $draftTrait, aspiration: $draftAspiration
                     ) {
-                        coordinator.configureNewCharacter(name: draftName, colorHex: draftColorHex, trait: draftTrait, aspiration: draftAspiration)
+                        coordinator.configureNewCharacter(name: draftName, appearance: draftAppearance, trait: draftTrait, aspiration: draftAspiration)
                         needsCharacterCreation = false
                     }
                 }
