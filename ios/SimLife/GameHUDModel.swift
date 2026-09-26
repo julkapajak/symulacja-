@@ -17,6 +17,11 @@ final class GameHUDModel: ObservableObject {
     @Published var needs: [String: Double] = Dictionary(uniqueKeysWithValues: NeedKeys.all.map { ($0, 85.0) })
     @Published var toasts: [Toast] = []
 
+    @Published var aspirationIcon = ""
+    @Published var aspirationName = ""
+    @Published var aspirationProgress: Double = 0
+    @Published var aspirationDone = false
+
     // Build mode: toggled from the HUD's hammer button. `selectedItemType` is which catalog
     // item is "in hand" — GameScene reads both on each tap (see GameScene.handleTap).
     @Published var buildModeOn = false

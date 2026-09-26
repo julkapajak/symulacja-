@@ -25,6 +25,7 @@ struct HUDView: View {
             hudChip(icon: "💰", text: "\(Int(model.money)) zł")
             hudChip(icon: "☀️", text: "Dzień \(model.day)")
             hudChip(icon: "🕒", text: model.timeLabel)
+            aspirationChip
             Spacer()
             Text(model.jobTitle)
                 .font(.caption.bold())
@@ -34,6 +35,20 @@ struct HUDView: View {
                 .background(.black.opacity(0.4), in: Capsule())
             buildToggle
         }
+    }
+
+    private var aspirationChip: some View {
+        HStack(spacing: 6) {
+            Text(model.aspirationIcon)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(model.aspirationName).font(.caption2.bold()).lineLimit(1)
+                ProgressView(value: model.aspirationProgress).frame(width: 56).tint(.yellow)
+            }
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(model.aspirationDone ? Color.green.opacity(0.55) : Color.black.opacity(0.4), in: Capsule())
     }
 
     private var buildToggle: some View {

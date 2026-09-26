@@ -56,3 +56,42 @@ struct FurnitureAction {
     let skill: String?
     let skillGain: Double
 }
+
+/// A life goal with a one-time cash reward on completion — ported from app.js's ASPIRATIONS.
+/// `check`/`progress` take the SimNode itself so they can read whatever stat they need (a skill
+/// level, job level, ...) without this file needing to know SimNode's internals.
+struct Aspiration {
+    let name: String
+    let icon: String
+    let desc: String
+    let reward: Double
+    let check: (SimNode) -> Bool
+    let progress: (SimNode) -> (current: Double, total: Double)
+}
+
+enum AspirationCatalog {
+    // "soulmate" (build a full relationship with a housemate) isn't ported yet — there's no
+    // second Sim to have a relationship with.
+    static let all: [String: Aspiration] = [
+        "chef": Aspiration(
+            name: "Mistrz Kuchni", icon: "🍳", desc: "Osiągnij najwyższy poziom gotowania.", reward: 400,
+            check: { ($0.skills["cooking"] ?? 0) >= SkillCatalog.maxLevel },
+            progress: { (min($0.skills["cooking"] ?? 0, SkillCatalog.maxLevel), SkillCatalog.maxLevel) }
+        ),
+        "tycoon": Aspiration(
+            name: "Rekin Biznesu", icon: "💼", desc: "Zostań Prezesem w pracy.", reward: 600,
+            check: { $0.jobLevel >= CareerCatalog.jobTitles.count - 1 },
+            progress: { (Double($0.jobLevel + 1), Double(CareerCatalog.jobTitles.count)) }
+        ),
+        "social": Aspiration(
+            name: "Dusza Towarzystwa", icon: "🗣️", desc: "Osiągnij najwyższy poziom charyzmy.", reward: 400,
+            check: { ($0.skills["charisma"] ?? 0) >= SkillCatalog.maxLevel },
+            progress: { (min($0.skills["charisma"] ?? 0, SkillCatalog.maxLevel), SkillCatalog.maxLevel) }
+        ),
+        "athlete": Aspiration(
+            name: "Żelazna Kondycja", icon: "💪", desc: "Osiągnij najwyższy poziom kondycji.", reward: 400,
+            check: { ($0.skills["fitness"] ?? 0) >= SkillCatalog.maxLevel },
+            progress: { (min($0.skills["fitness"] ?? 0, SkillCatalog.maxLevel), SkillCatalog.maxLevel) }
+        ),
+    ]
+}

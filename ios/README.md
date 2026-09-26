@@ -1,4 +1,4 @@
-# SimLife na iPada — Faza 5 (tryb budowania)
+# SimLife na iPada — Faza 6 (aspiracje)
 
 To jest natywna aplikacja SwiftUI + SpriteKit, oddzielna od wersji przeglądarkowej w katalogu głównym repo. Faza 0 udowodniła, że cały łańcuch narzędzi (XcodeGen → Xcode → symulator) działa. Faza 1 przeniosła prawdziwy dom z `app.js`. Faza 2 dodała ruch i gesty:
 
@@ -23,6 +23,8 @@ Faza 5 dodaje **tryb budowania**:
 - W trybie budowania na dole pojawia się **pasek zakupów** — dotknij ikonę mebla, żeby go wybrać (podświetli się), potem dotknij puste pole w domu, żeby go tam postawić (jeśli starczy pieniędzy).
 - **Dotknięcie istniejącego mebla** w trybie budowania sprzedaje go za połowę ceny (samochodu nie da się sprzedać).
 - Rozstawione meble zapisują się razem z resztą stanu gry.
+
+Faza 6 dodaje **aspiracje** — cel życiowy z jednorazową nagrodą pieniężną po spełnieniu (Mistrz Kuchni, Rekin Biznesu, Dusza Towarzystwa, Żelazna Kondycja). Widoczna jako mały chip z paskiem postępu w górnym pasku HUD-u, obok pieniędzy/dnia/godziny. Na razie Sim dostaje losową aspirację przy starcie — wybór aspiracji doczeka się kreatora postaci w kolejnej fazie.
 
 Masz MacBooka Air M1 — to wystarczy, żeby zrobić i przetestować całość lokalnie, bez czekania na CI.
 
@@ -53,8 +55,9 @@ W Xcode:
 5. Na dole ekranu powinny być widoczne paski potrzeb, a u góry pieniądze/dzień/godzina/stanowisko. Dotknij lodówki, łóżka, prysznica, TV albo komputera — Sim powinien tam podejść i zacząć z nich korzystać (pojawi się dymek z komunikatem, a odpowiedni pasek potrzeby zacznie rosnąć). Dotknij samochodu w godzinach 8:00–18:00, żeby Sim poszedł do pracy.
 6. Zamknij i ponownie uruchom aplikację (Cmd+R) — stan gry (pieniądze, dzień, potrzeby) powinien zostać taki, jaki był, zamiast zresetować się do dnia 1.
 7. Dotknij 🔨 w prawym górnym rogu — na dole powinien pojawić się pasek z ikonami mebli do kupienia. Wybierz jeden, dotknij puste pole w domu, żeby go postawić. Dotknij dowolny mebel (nadal w trybie budowania), żeby go sprzedać za połowę ceny.
+8. Obok pieniędzy/dnia/godziny w górnym pasku powinien być widoczny mały chip z ikoną i paskiem postępu — to aspiracja Sima. Jeśli chcesz szybko zobaczyć jak wygląda spełniona (np. "Rekin Biznesu" wymaga awansu na Prezesa, co przy normalnym tempie gry zajmie sporo czasu) — to na razie po prostu obserwuj, że pasek rośnie wraz z postępami.
 
-Jeśli to działa — mamy solidny szkielet gry. Dalej w planie: aspiracje, współlokator i kreator postaci.
+Jeśli to działa — mamy solidny szkielet gry. Dalej w planie: współlokator i kreator postaci.
 
 ## Testowanie na prawdziwym iPadzie (opcjonalnie, już teraz)
 

@@ -120,6 +120,12 @@ final class GameScene: SKScene, UIGestureRecognizerDelegate {
         hud.timeLabel = formattedTime()
         hud.jobTitle = CareerCatalog.jobTitles[simNode.jobLevel]
         hud.needs = simNode.needs
+        if let info = simNode.aspirationInfo {
+            hud.aspirationIcon = info.icon
+            hud.aspirationName = info.name
+            hud.aspirationProgress = info.progress
+            hud.aspirationDone = info.done
+        }
     }
 
     /// One simulated minute of game time: need decay, action progress, warnings and autonomy —
@@ -141,6 +147,10 @@ final class GameScene: SKScene, UIGestureRecognizerDelegate {
         }
         if let message = simNode.tryAutonomy() {
             hud?.postToast(message)
+        }
+        if let result = simNode.checkAspiration() {
+            money += result.moneyDelta
+            hud?.postToast(result.message)
         }
     }
 

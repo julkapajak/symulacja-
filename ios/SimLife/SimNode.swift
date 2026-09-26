@@ -47,6 +47,10 @@ final class SimNode: SKNode {
     var pendingItemID: String?
     private var warned: Set<String> = []
 
+    // Auto-assigned for now (no character creator yet to let the player pick one).
+    var aspiration: String?
+    var aspirationDone = false
+
     /// Set by GameScene right after construction. Actions/pathfinding look up furniture through
     /// it (rather than the old static World.starterItems) so build mode's add/move/remove is
     /// reflected immediately.
@@ -57,6 +61,7 @@ final class SimNode: SKNode {
         gridY = CGFloat(startY)
         simName = name
         needs = Dictionary(uniqueKeysWithValues: NeedKeys.all.map { ($0, 85.0) })
+        aspiration = AspirationCatalog.all.keys.randomElement()
         super.init()
         buildVisuals(color: color, name: name)
         updateScreenPosition()
@@ -270,12 +275,32 @@ final class SimNode: SKNode {
         return nil
     }
 
+    // MARK: - Aspiration
+
+    /// Call once per simulated minute (mirrors app.js's checkAspiration). Returns a reward toast
+    /// the first time the goal is met; nil every other time, including forever after.
+    func checkAspiration() -> ActionResult? {
+        guard let key = aspiration, !aspirationDone, let asp = AspirationCatalog.all[key] else { return nil }
+        guard asp.check(self) else { return nil }
+        aspirationDone = true
+        let message = "🏆 \(simName) spełnił(a) aspirację „\(asp.name)”! (+\(Int(asp.reward)) zł)"
+        return ActionResult(message: message, moneyDelta: asp.reward)
+    }
+
+    var aspirationInfo: (icon: String, name: String, progress: Double, done: Bool)? {
+        guard let key = aspiration, let asp = AspirationCatalog.all[key] else { return nil }
+        let (current, total) = asp.progress(self)
+        let fraction = total > 0 ? min(1, current / total) : 0
+        return (asp.icon, asp.name, fraction, aspirationDone)
+    }
+
     // MARK: - Save/load
 
     var saveData: SimSaveData {
         SimSaveData(
             name: simName, gridX: Double(gridX), gridY: Double(gridY),
-            needs: needs, skills: skills, jobLevel: jobLevel, shiftsWorked: shiftsWorked
+            needs: needs, skills: skills, jobLevel: jobLevel, shiftsWorked: shiftsWorked,
+            aspiration: aspiration, aspirationDone: aspirationDone
         )
     }
 
@@ -288,6 +313,8 @@ final class SimNode: SKNode {
         skills = data.skills
         jobLevel = data.jobLevel
         shiftsWorked = data.shiftsWorked
+        aspiration = data.aspiration
+        aspirationDone = data.aspirationDone
         cancelCurrentActivity()
         updateScreenPosition()
     }

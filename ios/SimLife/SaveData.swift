@@ -10,6 +10,8 @@ struct SimSaveData: Codable {
     var skills: [String: Double]
     var jobLevel: Int
     var shiftsWorked: Int
+    var aspiration: String?
+    var aspirationDone: Bool
 }
 
 struct GameSaveData: Codable {
