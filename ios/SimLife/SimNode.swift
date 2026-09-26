@@ -263,4 +263,26 @@ final class SimNode: SKNode {
         }
         return nil
     }
+
+    // MARK: - Save/load
+
+    var saveData: SimSaveData {
+        SimSaveData(
+            name: simName, gridX: Double(gridX), gridY: Double(gridY),
+            needs: needs, skills: skills, jobLevel: jobLevel, shiftsWorked: shiftsWorked
+        )
+    }
+
+    /// Restores a save onto this node, teleporting it (no walk animation) to the saved tile and
+    /// clearing any in-progress path/action, since the path/action referred to the old session.
+    func applySaveData(_ data: SimSaveData) {
+        gridX = CGFloat(data.gridX)
+        gridY = CGFloat(data.gridY)
+        needs = data.needs
+        skills = data.skills
+        jobLevel = data.jobLevel
+        shiftsWorked = data.shiftsWorked
+        cancelCurrentActivity()
+        updateScreenPosition()
+    }
 }

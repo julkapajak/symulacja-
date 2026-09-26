@@ -1,4 +1,4 @@
-# SimLife na iPada — Faza 3 (rozgrywka)
+# SimLife na iPada — Faza 4 (zapis stanu gry)
 
 To jest natywna aplikacja SwiftUI + SpriteKit, oddzielna od wersji przeglądarkowej w katalogu głównym repo. Faza 0 udowodniła, że cały łańcuch narzędzi (XcodeGen → Xcode → symulator) działa. Faza 1 przeniosła prawdziwy dom z `app.js`. Faza 2 dodała ruch i gesty:
 
@@ -14,6 +14,8 @@ Faza 3 dodaje samą rozgrywkę:
 - **Kariera**: samochód to praca — dojazd 8:00–18:00, wypłata i awanse co 3 zmiany.
 - **Autonomia**: gdy potrzeba spadnie krytycznie nisko, Sim sam idzie ją zaspokoić.
 - **HUD** (SwiftUI, nałożony na scenę): pieniądze, dzień, godzina, stanowisko, paski potrzeb i dymki z komunikatami.
+
+Faza 4 dodaje **zapis stanu gry** — postęp (pieniądze, dzień, godzina, pozycja Sima, potrzeby, umiejętności, stanowisko) zapisuje się automatycznie co 30 sekund i przy przejściu aplikacji w tło, a wczytuje się przy starcie. Zamknięcie i ponowne otwarcie aplikacji nie resetuje już gry do zera.
 
 Masz MacBooka Air M1 — to wystarczy, żeby zrobić i przetestować całość lokalnie, bez czekania na CI.
 

@@ -31,6 +31,15 @@ final class GameScene: SKScene, UIGestureRecognizerDelegate {
     private var accumMs: Double = 0
     private let baseMinMs: Double = 150
 
+    // Autosave — mirrors app.js's 30s localStorage interval, plus a save whenever the app
+    // backgrounds (see the NotificationCenter observers below) so a swipe-away never loses time.
+    private var saveAccumSec: Double = 0
+    private let saveIntervalSec: Double = 30
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
     override func didMove(to view: SKView) {
         backgroundColor = SKColor(hex: "#05070f")
         anchorPoint = CGPoint(x: 0.5, y: 0.5)
@@ -41,6 +50,10 @@ final class GameScene: SKScene, UIGestureRecognizerDelegate {
         buildWorld()
         recenterWorld()
         addChild(worldContainer)
+        loadStateIfAvailable()
+
+        NotificationCenter.default.addObserver(self, selector: #selector(persistState), name: UIApplication.willResignActiveNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(persistState), name: UIApplication.didEnterBackgroundNotification, object: nil)
 
         addChild(cameraNode)
         camera = cameraNode
@@ -81,6 +94,12 @@ final class GameScene: SKScene, UIGestureRecognizerDelegate {
             tickMinute()
         }
 
+        saveAccumSec += dt
+        if saveAccumSec >= saveIntervalSec {
+            saveAccumSec = 0
+            persistState()
+        }
+
         guard let hud else { return }
         hud.money = money
         hud.day = day
@@ -115,6 +134,21 @@ final class GameScene: SKScene, UIGestureRecognizerDelegate {
         let h = Int(minutesOfDay / 60) % 24
         let m = Int(minutesOfDay) % 60
         return String(format: "%02d:%02d", h, m)
+    }
+
+    // MARK: - Save/load
+
+    @objc private func persistState() {
+        let data = GameSaveData(money: money, day: day, minutesOfDay: minutesOfDay, sim: simNode.saveData)
+        SaveStore.save(data)
+    }
+
+    private func loadStateIfAvailable() {
+        guard let data = SaveStore.load() else { return }
+        money = data.money
+        day = data.day
+        minutesOfDay = data.minutesOfDay
+        simNode.applySaveData(data.sim)
     }
 
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
