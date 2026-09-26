@@ -33,6 +33,11 @@ struct ContentView: View {
                         coordinator.configureNewCharacter(name: draftName, appearance: draftAppearance, trait: draftTrait, aspiration: draftAspiration)
                         needsCharacterCreation = false
                     }
+                    // Without an explicit frame here, this view sizes itself to its own content
+                    // rather than the screen, so its internal ScrollView never learns it needs to
+                    // scroll — the "Zacznij grę" button at the bottom becomes unreachable.
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                    .ignoresSafeArea()
                 }
             }
         }
