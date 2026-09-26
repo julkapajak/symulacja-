@@ -10,6 +10,7 @@ import UIKit
 final class GameCoordinator: NSObject, SCNSceneRendererDelegate, UIGestureRecognizerDelegate {
     let scene = SCNScene()
     let cameraNode = SCNNode()
+    private let cameraTargetNode = SCNNode()
     private let worldNode = SCNNode()
     private var simNode: SimNode!
     private var buildState: BuildState!
@@ -26,11 +27,15 @@ final class GameCoordinator: NSObject, SCNSceneRendererDelegate, UIGestureRecogn
     // constant, not user-controllable — like the classic Sims camera, dragging only spins the
     // view around the house (yaw); the ground's tilt on screen never changes, only zoom and
     // which side you're looking from do.
-    private var yaw: Float = .pi / 4
+    // Starting yaw of 0 looks straight at the house's long side (it's 16x9 tiles) rather than at
+    // its corner — a 45° diagonal view of such an elongated rectangle reads as a thin tilted
+    // sliver rather than a house. radius is generous enough to fit the ~17-unit diagonal at any
+    // yaw once the player starts orbiting.
+    private var yaw: Float = 0
     private let pitch: Float = 0.62
-    private var radius: Float = 16
-    private let minRadius: Float = 5
-    private let maxRadius: Float = 26
+    private var radius: Float = 20
+    private let minRadius: Float = 6
+    private let maxRadius: Float = 32
 
     private var lastUpdateTime: TimeInterval = 0
 
@@ -119,31 +124,27 @@ final class GameCoordinator: NSObject, SCNSceneRendererDelegate, UIGestureRecogn
         camera.zFar = 100
         cameraNode.camera = camera
         scene.rootNode.addChildNode(cameraNode)
+
+        // A dedicated, always-at-the-house-center target node, tracked via SCNLookAtConstraint
+        // with gimbal lock on — SceneKit's own, officially documented way to keep a camera level
+        // (no roll) while it's constrained to face a point, rather than computing the orientation
+        // by hand.
+        cameraTargetNode.position = SCNVector3(0, 0.8, 0)
+        scene.rootNode.addChildNode(cameraTargetNode)
+        let lookAt = SCNLookAtConstraint(target: cameraTargetNode)
+        lookAt.isGimbalLockEnabled = true
+        cameraNode.constraints = [lookAt]
+
         updateCameraTransform()
     }
 
-    /// Positions the camera on a sphere around the house and points it at the house's center —
-    /// built by hand (rather than SCNNode.look(at:)) so the "up" direction is always derived
-    /// from world-up via cross products, guaranteeing a level, roll-free horizon at every yaw.
+    /// Positions the camera on a sphere around the house; the SCNLookAtConstraint set up in
+    /// setUpCamera() handles keeping it pointed at the center and level.
     private func updateCameraTransform() {
         let x = radius * cos(pitch) * sin(yaw)
         let z = radius * cos(pitch) * cos(yaw)
         let y = radius * sin(pitch)
-        let position = SCNVector3(x, y, z)
-
-        let target = SCNVector3(0, 0.8, 0)
-        let forward = normalized(SCNVector3(target.x - position.x, target.y - position.y, target.z - position.z))
-        let worldUp = SCNVector3(0, 1, 0)
-        let right = normalized(cross(forward, worldUp))
-        let up = cross(right, forward)
-
-        // SceneKit cameras look down their local -Z axis, with local +X = right, +Y = up.
-        cameraNode.transform = SCNMatrix4(
-            m11: right.x, m12: right.y, m13: right.z, m14: 0,
-            m21: up.x, m22: up.y, m23: up.z, m24: 0,
-            m31: -forward.x, m32: -forward.y, m33: -forward.z, m34: 0,
-            m41: position.x, m42: position.y, m43: position.z, m44: 1
-        )
+        cameraNode.position = SCNVector3(x, y, z)
     }
 
     // MARK: - Gestures
