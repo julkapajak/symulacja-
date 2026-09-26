@@ -44,6 +44,31 @@ enum CareerCatalog {
     static let shiftsPerPromotion = 3
 }
 
+/// A personality trait picked at character creation — ported from app.js's TRAITS. `needMods`
+/// multiplies a specific need's decay rate; `salaryMod` multiplies wages; `funGainMod` multiplies
+/// how much any action's need-gain restores (app.js's generic traitMod(trait, "funGain", 1),
+/// despite the name it applies to every action, not just fun ones).
+struct TraitMeta {
+    let name: String
+    let desc: String
+    let needMods: [String: Double]
+    let salaryMod: Double
+    let funGainMod: Double
+}
+
+enum TraitCatalog {
+    static let all: [String: TraitMeta] = [
+        "towarzyski": TraitMeta(name: "Towarzyski", desc: "Kontakty spadają wolniej.", needMods: ["social": 0.5], salaryMod: 1, funGainMod: 1),
+        "pracowity": TraitMeta(name: "Pracowity", desc: "Zarabia więcej w pracy.", needMods: [:], salaryMod: 1.35, funGainMod: 1),
+        "leniwy": TraitMeta(name: "Leniwy", desc: "Energia spada wolniej.", needMods: ["energy": 0.6], salaryMod: 1, funGainMod: 1),
+        "imprezowicz": TraitMeta(name: "Imprezowicz", desc: "Zabawa spada szybciej, ale rośnie mocniej.", needMods: ["fun": 1.5], salaryMod: 1, funGainMod: 1.3),
+    ]
+}
+
+enum CharacterCatalog {
+    static let colors = ["#ff6f59", "#3fa796", "#f6c445", "#7b6cf6", "#e85ea0", "#4fb0e8"]
+}
+
 /// What tapping a piece of furniture does. `need` + `gain` restore a need over `durationMinutes`;
 /// `side` are secondary effects (e.g. a shower costs a little energy); `isWork` is the job action.
 struct FurnitureAction {

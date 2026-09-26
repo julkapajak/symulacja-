@@ -1,4 +1,4 @@
-# SimLife na iPada — Faza 6 (aspiracje)
+# SimLife na iPada — Faza 7 (kreator postaci)
 
 To jest natywna aplikacja SwiftUI + SpriteKit, oddzielna od wersji przeglądarkowej w katalogu głównym repo. Faza 0 udowodniła, że cały łańcuch narzędzi (XcodeGen → Xcode → symulator) działa. Faza 1 przeniosła prawdziwy dom z `app.js`. Faza 2 dodała ruch i gesty:
 
@@ -24,7 +24,9 @@ Faza 5 dodaje **tryb budowania**:
 - **Dotknięcie istniejącego mebla** w trybie budowania sprzedaje go za połowę ceny (samochodu nie da się sprzedać).
 - Rozstawione meble zapisują się razem z resztą stanu gry.
 
-Faza 6 dodaje **aspiracje** — cel życiowy z jednorazową nagrodą pieniężną po spełnieniu (Mistrz Kuchni, Rekin Biznesu, Dusza Towarzystwa, Żelazna Kondycja). Widoczna jako mały chip z paskiem postępu w górnym pasku HUD-u, obok pieniędzy/dnia/godziny. Na razie Sim dostaje losową aspirację przy starcie — wybór aspiracji doczeka się kreatora postaci w kolejnej fazie.
+Faza 6 dodała **aspiracje** — cel życiowy z jednorazową nagrodą pieniężną po spełnieniu (Mistrz Kuchni, Rekin Biznesu, Dusza Towarzystwa, Żelazna Kondycja), widoczny jako chip z paskiem postępu w HUD-zie.
+
+Faza 7 dodaje **kreator postaci** — przy pierwszym uruchomieniu (bez wcześniejszego zapisu) gra pyta o imię, kolor, cechę charakteru (Towarzyski/Pracowity/Leniwy/Imprezowicz — każda ma realny wpływ na tempo opadania potrzeb albo zarobki) i aspirację życiową, zamiast przydzielać je losowo. Jeśli zapis już istnieje, kreator jest pomijany i gra wraca prosto do zapisanego Sima.
 
 Masz MacBooka Air M1 — to wystarczy, żeby zrobić i przetestować całość lokalnie, bez czekania na CI.
 
@@ -50,14 +52,14 @@ open SimLife.xcodeproj
 W Xcode:
 1. Przy przycisku ▶ (Play) w górnym pasku wybierz symulator, np. **iPad Pro 13-inch (M4)**.
 2. Naciśnij ▶ (albo `Cmd+R`).
-3. Po chwili powinieneś zobaczyć: niebieskie niebo ze słońcem, izometryczny dom z pięcioma pokojami (kolorowe podłogi, ściany, okna, dwoje drzwi), startowe meble (lodówka, łóżko, telewizor, itd.) i Sima.
+3. Ponieważ masz już zapisaną grę z poprzednich testów, od razu zobaczysz dom (kreator postaci pomija się, gdy zapis już istnieje). Żeby zobaczyć sam kreator (imię/kolor/cecha/aspiracja), usuń aplikację z symulatora (przytrzymaj ikonę → Usuń) i uruchom ją ponownie od zera. Powinnaś zobaczyć ekran z polem na imię, kółkami kolorów, listą cech charakteru i listą aspiracji, a na dole przycisk "Zacznij grę". Po jego dotknięciu zobaczysz: niebieskie niebo ze słońcem, izometryczny dom z pięcioma pokojami (kolorowe podłogi, ściany, okna, dwoje drzwi), startowe meble (lodówka, łóżko, telewizor, itd.) i Twojego Sima w wybranym kolorze.
 4. Dotknij dowolnego wolnego pola (na symulatorze: kliknij myszką) — Sim powinien tam dojść, omijając ściany. Przeciągnij, żeby przesunąć widok. Uszczypnij (na symulatorze: przytrzymaj Option i przeciągnij), żeby przybliżyć/oddalić.
 5. Na dole ekranu powinny być widoczne paski potrzeb, a u góry pieniądze/dzień/godzina/stanowisko. Dotknij lodówki, łóżka, prysznica, TV albo komputera — Sim powinien tam podejść i zacząć z nich korzystać (pojawi się dymek z komunikatem, a odpowiedni pasek potrzeby zacznie rosnąć). Dotknij samochodu w godzinach 8:00–18:00, żeby Sim poszedł do pracy.
 6. Zamknij i ponownie uruchom aplikację (Cmd+R) — stan gry (pieniądze, dzień, potrzeby) powinien zostać taki, jaki był, zamiast zresetować się do dnia 1.
 7. Dotknij 🔨 w prawym górnym rogu — na dole powinien pojawić się pasek z ikonami mebli do kupienia. Wybierz jeden, dotknij puste pole w domu, żeby go postawić. Dotknij dowolny mebel (nadal w trybie budowania), żeby go sprzedać za połowę ceny.
-8. Obok pieniędzy/dnia/godziny w górnym pasku powinien być widoczny mały chip z ikoną i paskiem postępu — to aspiracja Sima. Jeśli chcesz szybko zobaczyć jak wygląda spełniona (np. "Rekin Biznesu" wymaga awansu na Prezesa, co przy normalnym tempie gry zajmie sporo czasu) — to na razie po prostu obserwuj, że pasek rośnie wraz z postępami.
+8. Obok pieniędzy/dnia/godziny w górnym pasku powinien być widoczny mały chip z ikoną i paskiem postępu — to aspiracja wybrana w kreatorze (albo losowa, jeśli testujesz na starym zapisie sprzed Fazy 7).
 
-Jeśli to działa — mamy solidny szkielet gry. Dalej w planie: współlokator i kreator postaci.
+Jeśli to działa — mamy solidny szkielet gry. Dalej w planie: współlokator (drugi Sim + relacje).
 
 ## Testowanie na prawdziwym iPadzie (opcjonalnie, już teraz)
 

@@ -22,6 +22,23 @@ final class GameScene: SKScene, UIGestureRecognizerDelegate {
     /// into it every frame; nil only for the handful of frames before that assignment lands.
     var hud: GameHUDModel?
 
+    // Character creator choices, applied when building a brand new Sim (see buildWorld()).
+    // Left at these defaults when a save exists — ContentView skips the creator entirely then,
+    // and applySaveData() overwrites everything anyway once didMove runs.
+    private var characterName = "Sim"
+    private var characterColorHex = "#ff6f59"
+    private var characterTrait: String?
+    private var characterAspiration: String?
+
+    /// Called by ContentView once the player finishes the character creator, before the scene
+    /// is ever presented — so buildWorld() picks these up when it creates the Sim.
+    func configureNewCharacter(name: String, colorHex: String, trait: String?, aspiration: String) {
+        characterName = name.isEmpty ? "Sim" : name
+        characterColorHex = colorHex
+        characterTrait = trait
+        characterAspiration = aspiration
+    }
+
     private var lastUpdateTime: TimeInterval = 0
     private var worldHalfWidth: CGFloat = 400
     private var worldHalfHeight: CGFloat = 300
@@ -328,7 +345,11 @@ final class GameScene: SKScene, UIGestureRecognizerDelegate {
             addFurnitureNode(for: item)
         }
 
-        simNode = SimNode(startX: 3, startY: 3, color: SKColor(hex: "#ff6f59"), name: "Sim")
+        simNode = SimNode(startX: 3, startY: 3, color: SKColor(hex: characterColorHex), name: characterName)
+        simNode.trait = characterTrait
+        if let aspiration = characterAspiration {
+            simNode.aspiration = aspiration
+        }
         worldContainer.addChild(simNode)
     }
 

@@ -47,9 +47,11 @@ final class SimNode: SKNode {
     var pendingItemID: String?
     private var warned: Set<String> = []
 
-    // Auto-assigned for now (no character creator yet to let the player pick one).
+    // Auto-assigned by default; the character creator (ContentView/GameScene.configureNewCharacter)
+    // overwrites these before the first frame if the player made an explicit choice.
     var aspiration: String?
     var aspirationDone = false
+    var trait: String?
 
     /// Set by GameScene right after construction. Actions/pathfinding look up furniture through
     /// it (rather than the old static World.starterItems) so build mode's add/move/remove is
@@ -169,9 +171,16 @@ final class SimNode: SKNode {
 
     // MARK: - Simulation ticks (called once per simulated minute)
 
+    private var traitMeta: TraitMeta? {
+        trait.flatMap { TraitCatalog.all[$0] }
+    }
+
     func applyNeedDecay(minutes: Double) {
+        let needMods = traitMeta?.needMods ?? [:]
         for k in NeedKeys.all {
-            let rate = (NeedCatalog.table[k]?.decay ?? 0) * minutes
+            var mod = needMods[k] ?? 1
+            if k == "energy" { mod *= 1 - (skills["fitness"] ?? 0) * 0.02 }
+            let rate = (NeedCatalog.table[k]?.decay ?? 0) * mod * minutes
             needs[k] = max(0, min(100, (needs[k] ?? 100) - rate))
         }
     }
@@ -183,7 +192,8 @@ final class SimNode: SKNode {
 
         if let need = action.need {
             let skillMult = action.skill.map { 1 + (skills[$0] ?? 0) * 0.05 } ?? 1
-            needs[need] = max(0, min(100, (needs[need] ?? 0) + action.gain * frac * skillMult))
+            let funGainMod = traitMeta?.funGainMod ?? 1
+            needs[need] = max(0, min(100, (needs[need] ?? 0) + action.gain * frac * funGainMod * skillMult))
         }
         for (k, delta) in action.side {
             needs[k] = max(0, min(100, (needs[k] ?? 0) + delta * frac))
@@ -204,7 +214,8 @@ final class SimNode: SKNode {
         if action.isWork {
             let base = Double(CareerCatalog.baseSalary[jobLevel])
             let charismaBonus = 1 + (skills["charisma"] ?? 0) * 0.03
-            let pay = (base * charismaBonus).rounded()
+            let salaryMod = traitMeta?.salaryMod ?? 1
+            let pay = (base * salaryMod * charismaBonus).rounded()
             moneyDelta = pay
             shiftsWorked += 1
             message = "\(simName) zarobił \(Int(pay)) zł jako \(CareerCatalog.jobTitles[jobLevel])!"
@@ -300,7 +311,7 @@ final class SimNode: SKNode {
         SimSaveData(
             name: simName, gridX: Double(gridX), gridY: Double(gridY),
             needs: needs, skills: skills, jobLevel: jobLevel, shiftsWorked: shiftsWorked,
-            aspiration: aspiration, aspirationDone: aspirationDone
+            aspiration: aspiration, aspirationDone: aspirationDone, trait: trait
         )
     }
 
@@ -315,6 +326,7 @@ final class SimNode: SKNode {
         shiftsWorked = data.shiftsWorked
         aspiration = data.aspiration
         aspirationDone = data.aspirationDone
+        trait = data.trait
         cancelCurrentActivity()
         updateScreenPosition()
     }

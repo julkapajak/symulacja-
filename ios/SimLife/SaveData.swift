@@ -12,6 +12,7 @@ struct SimSaveData: Codable {
     var shiftsWorked: Int
     var aspiration: String?
     var aspirationDone: Bool
+    var trait: String?
 }
 
 struct GameSaveData: Codable {
