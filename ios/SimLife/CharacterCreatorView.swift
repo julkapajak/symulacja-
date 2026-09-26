@@ -3,6 +3,10 @@ import SwiftUI
 /// Shown once, before the very first game session (ContentView skips it when a save already
 /// exists). Mirrors app.js's #charCreator modal, extended with real appearance choices (natural
 /// skin tones, hair, clothing color, body type) instead of a single arbitrary body color.
+///
+/// Stepped rather than one long scrolling form: a single-page version made "Zacznij grę" hard to
+/// reach on the Simulator (drag-to-scroll there is finicky), and each step here is short enough
+/// to fit on screen without scrolling at all, sidestepping the problem entirely.
 struct CharacterCreatorView: View {
     @Binding var name: String
     @Binding var appearance: CharacterAppearance
@@ -10,92 +14,153 @@ struct CharacterCreatorView: View {
     @Binding var aspiration: String
     let onStart: () -> Void
 
+    @State private var step = 0
+    private let totalSteps = 5
+
     var body: some View {
         ZStack {
             Color.black.opacity(0.92).ignoresSafeArea()
-            ScrollView {
-                VStack(spacing: 28) {
-                    Text("Stwórz swojego Sima")
-                        .font(.largeTitle.bold())
-                        .foregroundStyle(.white)
+            VStack(spacing: 20) {
+                Text("Stwórz swojego Sima")
+                    .font(.largeTitle.bold())
+                    .foregroundStyle(.white)
+                    .padding(.top, 32)
 
-                    section(title: "Imię") {
-                        TextField("np. Ala", text: $name)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(maxWidth: 320)
-                    }
+                stepIndicator
 
-                    section(title: "Odcień skóry") {
-                        swatchRow(CharacterCatalog.skinTones, selected: appearance.skinTone) { appearance.skinTone = $0 }
-                    }
+                Spacer(minLength: 0)
 
-                    section(title: "Kolor włosów") {
-                        swatchRow(CharacterCatalog.hairColors, selected: appearance.hairColor) { appearance.hairColor = $0 }
-                    }
+                currentStep
+                    .frame(maxWidth: 520)
+                    .padding(.horizontal, 24)
 
-                    section(title: "Fryzura") {
-                        VStack(spacing: 8) {
-                            ForEach(CharacterCatalog.hairStyles, id: \.self) { key in
-                                pickRow(title: CharacterCatalog.hairStyleLabels[key] ?? key, subtitle: nil, isSelected: appearance.hairStyle == key) {
-                                    appearance.hairStyle = key
-                                }
-                            }
-                        }
-                    }
+                Spacer(minLength: 0)
 
-                    section(title: "Kolor ubrań") {
-                        swatchRow(CharacterCatalog.clothingColors, selected: appearance.clothingColor) { appearance.clothingColor = $0 }
-                    }
-
-                    section(title: "Sylwetka") {
-                        VStack(spacing: 8) {
-                            ForEach(CharacterCatalog.bodyTypeOrder, id: \.self) { key in
-                                pickRow(title: CharacterCatalog.bodyTypeLabels[key] ?? key, subtitle: nil, isSelected: appearance.bodyType == key) {
-                                    appearance.bodyType = key
-                                }
-                            }
-                        }
-                    }
-
-                    section(title: "Cecha charakteru") {
-                        VStack(spacing: 8) {
-                            ForEach(TraitCatalog.all.keys.sorted(), id: \.self) { key in
-                                if let meta = TraitCatalog.all[key] {
-                                    pickRow(title: meta.name, subtitle: meta.desc, isSelected: trait == key) {
-                                        trait = (trait == key) ? nil : key
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    section(title: "Aspiracja życiowa") {
-                        VStack(spacing: 8) {
-                            ForEach(AspirationCatalog.all.keys.sorted(), id: \.self) { key in
-                                if let asp = AspirationCatalog.all[key] {
-                                    pickRow(icon: asp.icon, title: asp.name, subtitle: asp.desc, isSelected: aspiration == key) {
-                                        aspiration = key
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    Button(action: onStart) {
-                        Text("Zacznij grę")
-                            .font(.headline.bold())
-                            .foregroundStyle(.black)
-                            .padding(.horizontal, 40)
-                            .padding(.vertical, 14)
-                            .background(Color.orange, in: Capsule())
-                    }
-                    .padding(.top, 10)
-                }
-                .padding(24)
-                .frame(maxWidth: 520)
+                navigationButtons
+                    .frame(maxWidth: 520)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 32)
             }
         }
     }
+
+    @ViewBuilder private var currentStep: some View {
+        switch step {
+        case 0: nameStep
+        case 1: hairAndSkinStep
+        case 2: clothingAndBodyStep
+        case 3: traitStep
+        default: aspirationStep
+        }
+    }
+
+    private var stepIndicator: some View {
+        HStack(spacing: 8) {
+            ForEach(0..<totalSteps, id: \.self) { i in
+                Circle()
+                    .fill(i == step ? Color.orange : Color.white.opacity(0.25))
+                    .frame(width: 8, height: 8)
+            }
+        }
+    }
+
+    private var navigationButtons: some View {
+        HStack {
+            if step > 0 {
+                Button("Wstecz") { step -= 1 }
+                    .buttonStyle(.bordered)
+                    .tint(.white)
+            }
+            Spacer()
+            if step < totalSteps - 1 {
+                Button("Dalej") { step += 1 }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
+            } else {
+                Button("Zacznij grę", action: onStart)
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
+            }
+        }
+        .font(.headline)
+    }
+
+    // MARK: - Steps
+
+    private var nameStep: some View {
+        section(title: "Imię") {
+            TextField("np. Ala", text: $name)
+                .textFieldStyle(.roundedBorder)
+                .frame(maxWidth: 320)
+        }
+    }
+
+    private var hairAndSkinStep: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            section(title: "Odcień skóry") {
+                swatchRow(CharacterCatalog.skinTones, selected: appearance.skinTone) { appearance.skinTone = $0 }
+            }
+            section(title: "Kolor włosów") {
+                swatchRow(CharacterCatalog.hairColors, selected: appearance.hairColor) { appearance.hairColor = $0 }
+            }
+            section(title: "Fryzura") {
+                VStack(spacing: 8) {
+                    ForEach(CharacterCatalog.hairStyles, id: \.self) { key in
+                        pickRow(title: CharacterCatalog.hairStyleLabels[key] ?? key, subtitle: nil, isSelected: appearance.hairStyle == key) {
+                            appearance.hairStyle = key
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var clothingAndBodyStep: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            section(title: "Kolor ubrań") {
+                swatchRow(CharacterCatalog.clothingColors, selected: appearance.clothingColor) { appearance.clothingColor = $0 }
+            }
+            section(title: "Sylwetka") {
+                VStack(spacing: 8) {
+                    ForEach(CharacterCatalog.bodyTypeOrder, id: \.self) { key in
+                        pickRow(title: CharacterCatalog.bodyTypeLabels[key] ?? key, subtitle: nil, isSelected: appearance.bodyType == key) {
+                            appearance.bodyType = key
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var traitStep: some View {
+        section(title: "Cecha charakteru") {
+            VStack(spacing: 8) {
+                ForEach(TraitCatalog.all.keys.sorted(), id: \.self) { key in
+                    if let meta = TraitCatalog.all[key] {
+                        pickRow(title: meta.name, subtitle: meta.desc, isSelected: trait == key) {
+                            trait = (trait == key) ? nil : key
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var aspirationStep: some View {
+        section(title: "Aspiracja życiowa") {
+            VStack(spacing: 8) {
+                ForEach(AspirationCatalog.all.keys.sorted(), id: \.self) { key in
+                    if let asp = AspirationCatalog.all[key] {
+                        pickRow(icon: asp.icon, title: asp.name, subtitle: asp.desc, isSelected: aspiration == key) {
+                            aspiration = key
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Shared row builders
 
     private func section(title: String, @ViewBuilder content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 10) {
