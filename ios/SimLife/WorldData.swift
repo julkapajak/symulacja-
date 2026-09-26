@@ -30,17 +30,12 @@ struct WallSpec {
     let kind: WallKind
 }
 
-struct FurniturePlacement {
-    let type: String
-    let x: Int
-    let y: Int
-}
-
 struct FurnitureCatalogEntry {
     let label: String
     let icon: String
     let color: String
     let height: CGFloat
+    let cost: Int
     let action: FurnitureAction?
 }
 
@@ -108,40 +103,46 @@ enum World {
     }
 
     static let furnitureCatalog: [String: FurnitureCatalogEntry] = [
-        "fridge": FurnitureCatalogEntry(label: "Lodówka", icon: "🍽️", color: "#f2f4f4", height: 40, action:
+        "fridge": FurnitureCatalogEntry(label: "Lodówka", icon: "🍽️", color: "#f2f4f4", height: 40, cost: 300, action:
             FurnitureAction(label: "Zjedz", need: "hunger", gain: 60, durationMinutes: 20, side: [:], isWork: false, skill: "cooking", skillGain: 0.12)),
-        "sink": FurnitureCatalogEntry(label: "Umywalka", icon: "🚰", color: "#dceff5", height: 20, action:
+        "sink": FurnitureCatalogEntry(label: "Umywalka", icon: "🚰", color: "#dceff5", height: 20, cost: 120, action:
             FurnitureAction(label: "Umyj ręce", need: "hygiene", gain: 20, durationMinutes: 8, side: [:], isWork: false, skill: nil, skillGain: 0)),
-        "toilet": FurnitureCatalogEntry(label: "Toaleta", icon: "🚽", color: "#ffffff", height: 22, action:
+        "toilet": FurnitureCatalogEntry(label: "Toaleta", icon: "🚽", color: "#ffffff", height: 22, cost: 250, action:
             FurnitureAction(label: "Skorzystaj z toalety", need: "bladder", gain: 100, durationMinutes: 6, side: [:], isWork: false, skill: nil, skillGain: 0)),
-        "shower": FurnitureCatalogEntry(label: "Prysznic", icon: "🚿", color: "#cdeaf7", height: 34, action:
+        "shower": FurnitureCatalogEntry(label: "Prysznic", icon: "🚿", color: "#cdeaf7", height: 34, cost: 350, action:
             FurnitureAction(label: "Weź prysznic", need: "hygiene", gain: 100, durationMinutes: 15, side: ["energy": 5], isWork: false, skill: nil, skillGain: 0)),
-        "bed": FurnitureCatalogEntry(label: "Łóżko", icon: "🛏️", color: "#e3d3f5", height: 16, action:
+        "bed": FurnitureCatalogEntry(label: "Łóżko", icon: "🛏️", color: "#e3d3f5", height: 16, cost: 400, action:
             FurnitureAction(label: "Śpij", need: "energy", gain: 100, durationMinutes: 240, side: ["hygiene": -10, "bladder": -15], isWork: false, skill: nil, skillGain: 0)),
-        "bookshelf": FurnitureCatalogEntry(label: "Regał", icon: "📚", color: "#b3814f", height: 42, action:
+        "bookshelf": FurnitureCatalogEntry(label: "Regał", icon: "📚", color: "#b3814f", height: 42, cost: 220, action:
             FurnitureAction(label: "Czytaj", need: "fun", gain: 25, durationMinutes: 30, side: [:], isWork: false, skill: nil, skillGain: 0)),
-        "sofa": FurnitureCatalogEntry(label: "Sofa", icon: "🛋️", color: "#efa08a", height: 22, action:
+        "sofa": FurnitureCatalogEntry(label: "Sofa", icon: "🛋️", color: "#efa08a", height: 22, cost: 280, action:
             FurnitureAction(label: "Odpoczywaj", need: "fun", gain: 20, durationMinutes: 40, side: ["energy": 10], isWork: false, skill: nil, skillGain: 0)),
-        "tv": FurnitureCatalogEntry(label: "Telewizor", icon: "📺", color: "#33393f", height: 30, action:
+        "tv": FurnitureCatalogEntry(label: "Telewizor", icon: "📺", color: "#33393f", height: 30, cost: 500, action:
             FurnitureAction(label: "Oglądaj TV", need: "fun", gain: 35, durationMinutes: 60, side: ["energy": -5], isWork: false, skill: nil, skillGain: 0)),
-        "computer": FurnitureCatalogEntry(label: "Komputer", icon: "💻", color: "#7a828c", height: 26, action:
+        "computer": FurnitureCatalogEntry(label: "Komputer", icon: "💻", color: "#7a828c", height: 26, cost: 450, action:
             FurnitureAction(label: "Graj na komputerze", need: "fun", gain: 30, durationMinutes: 55, side: ["energy": -10], isWork: false, skill: nil, skillGain: 0)),
-        "car": FurnitureCatalogEntry(label: "Praca (Samochód)", icon: "🚗", color: "#e35b52", height: 26, action:
+        "car": FurnitureCatalogEntry(label: "Praca (Samochód)", icon: "🚗", color: "#e35b52", height: 26, cost: 0, action:
             FurnitureAction(label: "Jedź do pracy", need: nil, gain: 0, durationMinutes: 480, side: ["energy": -30, "fun": -10, "social": -10, "hygiene": -15, "hunger": -20], isWork: true, skill: nil, skillGain: 0)),
-        "tree": FurnitureCatalogEntry(label: "Drzewo", icon: "🌳", color: "#5fae5f", height: 36, action: nil),
+        "tree": FurnitureCatalogEntry(label: "Drzewo", icon: "🌳", color: "#5fae5f", height: 36, cost: 60, action: nil),
     ]
 
-    static let starterItems: [FurniturePlacement] = [
-        FurniturePlacement(type: "fridge", x: 1, y: 1),
-        FurniturePlacement(type: "sink", x: 2, y: 1),
-        FurniturePlacement(type: "toilet", x: 1, y: 5),
-        FurniturePlacement(type: "shower", x: 1, y: 7),
-        FurniturePlacement(type: "bed", x: 5, y: 2),
-        FurniturePlacement(type: "bookshelf", x: 7, y: 1),
-        FurniturePlacement(type: "sofa", x: 9, y: 3),
-        FurniturePlacement(type: "tv", x: 10, y: 3),
-        FurniturePlacement(type: "computer", x: 9, y: 6),
-        FurniturePlacement(type: "car", x: 13, y: 3),
-        FurniturePlacement(type: "tree", x: 14, y: 1),
+    /// Furniture that can be bought and placed in build mode. The car is excluded — it's the
+    /// fixed commute-to-work vehicle, not something you shop for (mirrors app.js's `fixed: true`).
+    static let buildableTypes: [String] = furnitureCatalog.keys.filter { $0 != "car" }.sorted {
+        (furnitureCatalog[$0]?.cost ?? 0) < (furnitureCatalog[$1]?.cost ?? 0)
+    }
+
+    static let starterItems: [PlacedItem] = [
+        PlacedItem(id: "start_fridge", type: "fridge", x: 1, y: 1),
+        PlacedItem(id: "start_sink", type: "sink", x: 2, y: 1),
+        PlacedItem(id: "start_toilet", type: "toilet", x: 1, y: 5),
+        PlacedItem(id: "start_shower", type: "shower", x: 1, y: 7),
+        PlacedItem(id: "start_bed", type: "bed", x: 5, y: 2),
+        PlacedItem(id: "start_bookshelf", type: "bookshelf", x: 7, y: 1),
+        PlacedItem(id: "start_sofa", type: "sofa", x: 9, y: 3),
+        PlacedItem(id: "start_tv", type: "tv", x: 10, y: 3),
+        PlacedItem(id: "start_computer", type: "computer", x: 9, y: 6),
+        PlacedItem(id: "start_car", type: "car", x: 13, y: 3),
+        PlacedItem(id: "start_tree", type: "tree", x: 14, y: 1),
     ]
 }

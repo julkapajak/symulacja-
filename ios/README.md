@@ -1,4 +1,4 @@
-# SimLife na iPada — Faza 4 (zapis stanu gry)
+# SimLife na iPada — Faza 5 (tryb budowania)
 
 To jest natywna aplikacja SwiftUI + SpriteKit, oddzielna od wersji przeglądarkowej w katalogu głównym repo. Faza 0 udowodniła, że cały łańcuch narzędzi (XcodeGen → Xcode → symulator) działa. Faza 1 przeniosła prawdziwy dom z `app.js`. Faza 2 dodała ruch i gesty:
 
@@ -15,7 +15,14 @@ Faza 3 dodaje samą rozgrywkę:
 - **Autonomia**: gdy potrzeba spadnie krytycznie nisko, Sim sam idzie ją zaspokoić.
 - **HUD** (SwiftUI, nałożony na scenę): pieniądze, dzień, godzina, stanowisko, paski potrzeb i dymki z komunikatami.
 
-Faza 4 dodaje **zapis stanu gry** — postęp (pieniądze, dzień, godzina, pozycja Sima, potrzeby, umiejętności, stanowisko) zapisuje się automatycznie co 30 sekund i przy przejściu aplikacji w tło, a wczytuje się przy starcie. Zamknięcie i ponowne otwarcie aplikacji nie resetuje już gry do zera.
+Faza 4 dodała **zapis stanu gry** — postęp zapisuje się automatycznie co 30 sekund i przy przejściu aplikacji w tło, a wczytuje się przy starcie.
+
+Faza 5 dodaje **tryb budowania**:
+
+- **Przycisk 🔨** w prawym górnym rogu włącza/wyłącza tryb budowania.
+- W trybie budowania na dole pojawia się **pasek zakupów** — dotknij ikonę mebla, żeby go wybrać (podświetli się), potem dotknij puste pole w domu, żeby go tam postawić (jeśli starczy pieniędzy).
+- **Dotknięcie istniejącego mebla** w trybie budowania sprzedaje go za połowę ceny (samochodu nie da się sprzedać).
+- Rozstawione meble zapisują się razem z resztą stanu gry.
 
 Masz MacBooka Air M1 — to wystarczy, żeby zrobić i przetestować całość lokalnie, bez czekania na CI.
 
@@ -44,8 +51,10 @@ W Xcode:
 3. Po chwili powinieneś zobaczyć: niebieskie niebo ze słońcem, izometryczny dom z pięcioma pokojami (kolorowe podłogi, ściany, okna, dwoje drzwi), startowe meble (lodówka, łóżko, telewizor, itd.) i Sima.
 4. Dotknij dowolnego wolnego pola (na symulatorze: kliknij myszką) — Sim powinien tam dojść, omijając ściany. Przeciągnij, żeby przesunąć widok. Uszczypnij (na symulatorze: przytrzymaj Option i przeciągnij), żeby przybliżyć/oddalić.
 5. Na dole ekranu powinny być widoczne paski potrzeb, a u góry pieniądze/dzień/godzina/stanowisko. Dotknij lodówki, łóżka, prysznica, TV albo komputera — Sim powinien tam podejść i zacząć z nich korzystać (pojawi się dymek z komunikatem, a odpowiedni pasek potrzeby zacznie rosnąć). Dotknij samochodu w godzinach 8:00–18:00, żeby Sim poszedł do pracy.
+6. Zamknij i ponownie uruchom aplikację (Cmd+R) — stan gry (pieniądze, dzień, potrzeby) powinien zostać taki, jaki był, zamiast zresetować się do dnia 1.
+7. Dotknij 🔨 w prawym górnym rogu — na dole powinien pojawić się pasek z ikonami mebli do kupienia. Wybierz jeden, dotknij puste pole w domu, żeby go postawić. Dotknij dowolny mebel (nadal w trybie budowania), żeby go sprzedać za połowę ceny.
 
-Jeśli to działa — cała podstawowa rozgrywka jest gotowa. Dalej w planie: aspiracje, tryb budowania i współlokator.
+Jeśli to działa — mamy solidny szkielet gry. Dalej w planie: aspiracje, współlokator i kreator postaci.
 
 ## Testowanie na prawdziwym iPadzie (opcjonalnie, już teraz)
 

@@ -5,14 +5,18 @@ import UIKit
 /// Faza 2 dodała interakcję: dotknięcie pustego pola prowadzi Sima tam po prawdziwej ścieżce
 /// (BFS omijający ściany, patrz Pathfinding.swift), a przeciąganie/uszczypnięcie steruje kamerą
 /// SpriteKit (SKCameraNode) — odpowiednik JS-owej warstwy zoom/pan (state.camera / getTransform).
-/// Faza 3 dodaje samą rozgrywkę: potrzeby opadające w czasie, dotknięcie mebla żeby z niego
+/// Faza 3 dodała samą rozgrywkę: potrzeby opadające w czasie, dotknięcie mebla żeby z niego
 /// skorzystać, umiejętności, karierę i HUD (SwiftUI, patrz GameHUDModel.swift/HUDView.swift) —
-/// odpowiednik JS-owego tickMinutes/gameLoop.
+/// odpowiednik JS-owego tickMinutes/gameLoop. Faza 4 dodała zapis stanu gry (SaveData.swift).
+/// Faza 5 dodaje tryb budowania: przycisk 🔨 w HUD-zie, kupowanie mebli z paska (BuildState.swift
+/// zastępuje statyczną listę World.starterItems mutowalnym stanem) i sprzedawanie ich dotknięciem.
 final class GameScene: SKScene, UIGestureRecognizerDelegate {
 
     private let worldContainer = SKNode()
     private let cameraNode = SKCameraNode()
     private var simNode: SimNode!
+    private var buildState: BuildState!
+    private var furnitureNodes: [String: SKNode] = [:]
 
     /// Set by ContentView right after creating the scene. update(_:) pushes simulation state
     /// into it every frame; nil only for the handful of frames before that assignment lands.
@@ -47,10 +51,20 @@ final class GameScene: SKScene, UIGestureRecognizerDelegate {
         addChild(makeSkyBackground())
         addChild(makeSun())
 
+        let savedData = SaveStore.load()
+        buildState = BuildState(items: savedData?.items ?? World.starterItems)
+
         buildWorld()
         recenterWorld()
         addChild(worldContainer)
-        loadStateIfAvailable()
+        simNode.buildState = buildState
+
+        if let savedData {
+            money = savedData.money
+            day = savedData.day
+            minutesOfDay = savedData.minutesOfDay
+            simNode.applySaveData(savedData.sim)
+        }
 
         NotificationCenter.default.addObserver(self, selector: #selector(persistState), name: UIApplication.willResignActiveNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(persistState), name: UIApplication.didEnterBackgroundNotification, object: nil)
@@ -139,16 +153,8 @@ final class GameScene: SKScene, UIGestureRecognizerDelegate {
     // MARK: - Save/load
 
     @objc private func persistState() {
-        let data = GameSaveData(money: money, day: day, minutesOfDay: minutesOfDay, sim: simNode.saveData)
+        let data = GameSaveData(money: money, day: day, minutesOfDay: minutesOfDay, sim: simNode.saveData, items: buildState.items)
         SaveStore.save(data)
-    }
-
-    private func loadStateIfAvailable() {
-        guard let data = SaveStore.load() else { return }
-        money = data.money
-        day = data.day
-        minutesOfDay = data.minutesOfDay
-        simNode.applySaveData(data.sim)
     }
 
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
@@ -222,17 +228,69 @@ final class GameScene: SKScene, UIGestureRecognizerDelegate {
         let (tx, ty) = Iso.tileForCanvasPoint(canvasPoint)
         guard tx >= 0, ty >= 0, tx < World.cols, ty < World.rows else { return }
 
-        if let placement = World.starterItems.first(where: { $0.x == tx && $0.y == ty }) {
-            guard World.furnitureCatalog[placement.type]?.action != nil else { return }
-            simNode.startAction(towardItemType: placement.type)
+        if hud?.buildModeOn == true {
+            handleBuildTap(tx: tx, ty: ty)
             return
         }
 
-        guard Pathfinding.isWalkable(tx, ty) else { return }
+        if let placed = buildState.item(at: tx, ty) {
+            guard World.furnitureCatalog[placed.type]?.action != nil else { return }
+            simNode.startAction(towardItemID: placed.id)
+            return
+        }
+
+        let occupied = buildState.occupiedTiles()
+        guard Pathfinding.isWalkable(tx, ty, occupied: occupied) else { return }
         let start = simNode.tile
-        guard let path = Pathfinding.findPath(from: start, to: (tx, ty)) else { return }
+        guard let path = Pathfinding.findPath(from: start, to: (tx, ty), occupied: occupied) else { return }
         simNode.cancelCurrentActivity()
         simNode.path = path
+    }
+
+    // MARK: - Build mode
+
+    /// Tapping furniture while in build mode sells it for half price; tapping empty ground
+    /// places whatever's selected in the HUD's shopping strip (see HUDView.buildStrip). Mirrors
+    /// app.js's build mode (place/move/sell), minus dragging an existing piece to relocate it.
+    private func handleBuildTap(tx: Int, ty: Int) {
+        guard let hud else { return }
+
+        if let existing = buildState.item(at: tx, ty) {
+            guard existing.type != "car", let cat = World.furnitureCatalog[existing.type] else {
+                hud.postToast("Tego nie można sprzedać.")
+                return
+            }
+            let refund = cat.cost / 2
+            buildState.remove(id: existing.id)
+            removeFurnitureNode(id: existing.id)
+            money += Double(refund)
+            hud.postToast("Sprzedano: \(cat.label) (+\(refund) zł)")
+            return
+        }
+
+        guard let type = hud.selectedItemType, let cat = World.furnitureCatalog[type] else {
+            hud.postToast("Wybierz przedmiot do postawienia.")
+            return
+        }
+        guard money >= Double(cat.cost) else {
+            hud.postToast("Za mało pieniędzy.")
+            return
+        }
+        guard let placed = buildState.place(type: type, x: tx, y: ty) else { return }
+        money -= Double(cat.cost)
+        addFurnitureNode(for: placed)
+        hud.postToast("Postawiono: \(cat.label)")
+    }
+
+    private func addFurnitureNode(for item: PlacedItem) {
+        guard let node = makeFurniture(item) else { return }
+        furnitureNodes[item.id] = node
+        worldContainer.addChild(node)
+    }
+
+    private func removeFurnitureNode(id: String) {
+        furnitureNodes[id]?.removeFromParent()
+        furnitureNodes.removeValue(forKey: id)
     }
 
     // MARK: - World assembly
@@ -256,10 +314,8 @@ final class GameScene: SKScene, UIGestureRecognizerDelegate {
             worldContainer.addChild(node)
         }
 
-        for placement in World.starterItems {
-            if let furniture = makeFurniture(placement) {
-                worldContainer.addChild(furniture)
-            }
+        for item in buildState.items {
+            addFurnitureNode(for: item)
         }
 
         simNode = SimNode(startX: 3, startY: 3, color: SKColor(hex: "#ff6f59"), name: "Sim")
@@ -416,7 +472,7 @@ final class GameScene: SKScene, UIGestureRecognizerDelegate {
 
     // MARK: - Furniture
 
-    private func makeFurniture(_ placement: FurniturePlacement) -> SKNode? {
+    private func makeFurniture(_ placement: PlacedItem) -> SKNode? {
         guard let cat = World.furnitureCatalog[placement.type] else { return nil }
         let c = Iso.project(placement.x, placement.y)
         let topY = c.y - cat.height

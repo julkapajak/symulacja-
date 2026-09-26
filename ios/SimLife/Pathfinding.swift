@@ -2,13 +2,12 @@ import Foundation
 
 /// Wall-aware BFS pathfinding, mirroring app.js's bfsFrom/findPathToTile/findPathToNeighbor/
 /// edgeBlocked exactly: a 4-directional grid search that refuses to cross a solid wall edge or
-/// step onto furniture.
+/// step onto furniture. `occupied` is passed in rather than cached, since build mode can add,
+/// move or remove furniture at any time (see BuildState.occupiedTiles()).
 enum Pathfinding {
-    static let occupiedTiles: Set<String> = Set(World.starterItems.map { "\($0.x),\($0.y)" })
-
-    static func isWalkable(_ x: Int, _ y: Int) -> Bool {
+    static func isWalkable(_ x: Int, _ y: Int, occupied: Set<String>) -> Bool {
         guard x >= 0, y >= 0, x < World.cols, y < World.rows else { return false }
-        return !occupiedTiles.contains("\(x),\(y)")
+        return !occupied.contains("\(x),\(y)")
     }
 
     static func edgeBlocked(_ ax: Int, _ ay: Int, _ bx: Int, _ by: Int) -> Bool {
@@ -21,7 +20,7 @@ enum Pathfinding {
 
     private static func key(_ x: Int, _ y: Int) -> String { "\(x),\(y)" }
 
-    private static func bfsDistances(from start: (x: Int, y: Int)) -> (dist: [String: Int], prev: [String: (x: Int, y: Int)]) {
+    private static func bfsDistances(from start: (x: Int, y: Int), occupied: Set<String>) -> (dist: [String: Int], prev: [String: (x: Int, y: Int)]) {
         var dist: [String: Int] = [key(start.x, start.y): 0]
         var prev: [String: (x: Int, y: Int)] = [:]
         var queue: [(x: Int, y: Int)] = [start]
@@ -33,7 +32,7 @@ enum Pathfinding {
             for (dx, dy) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
                 let nx = cur.x + dx, ny = cur.y + dy
                 let k = key(nx, ny)
-                if !isWalkable(nx, ny) || dist[k] != nil { continue }
+                if !isWalkable(nx, ny, occupied: occupied) || dist[k] != nil { continue }
                 if edgeBlocked(cur.x, cur.y, nx, ny) { continue }
                 dist[k] = d + 1
                 prev[k] = cur
@@ -54,18 +53,18 @@ enum Pathfinding {
         return path.reversed()
     }
 
-    static func findPath(from start: (x: Int, y: Int), to goal: (x: Int, y: Int)) -> [(x: Int, y: Int)]? {
+    static func findPath(from start: (x: Int, y: Int), to goal: (x: Int, y: Int), occupied: Set<String>) -> [(x: Int, y: Int)]? {
         if start.x == goal.x && start.y == goal.y { return [] }
-        guard isWalkable(goal.x, goal.y) else { return nil }
-        let (dist, prev) = bfsDistances(from: start)
+        guard isWalkable(goal.x, goal.y, occupied: occupied) else { return nil }
+        let (dist, prev) = bfsDistances(from: start, occupied: occupied)
         guard dist[key(goal.x, goal.y)] != nil else { return nil }
         return reconstructPath(prev: prev, from: start, to: goal)
     }
 
     /// Paths to a tile *adjacent* to `target` (the nearest reachable one), for walking up to a
     /// piece of furniture to use it rather than standing on top of it.
-    static func findPathToNeighbor(from start: (x: Int, y: Int), target: (x: Int, y: Int)) -> [(x: Int, y: Int)]? {
-        let (dist, prev) = bfsDistances(from: start)
+    static func findPathToNeighbor(from start: (x: Int, y: Int), target: (x: Int, y: Int), occupied: Set<String>) -> [(x: Int, y: Int)]? {
+        let (dist, prev) = bfsDistances(from: start, occupied: occupied)
         let candidates = [
             (target.x + 1, target.y), (target.x - 1, target.y),
             (target.x, target.y + 1), (target.x, target.y - 1),
@@ -73,7 +72,7 @@ enum Pathfinding {
         var best: (x: Int, y: Int)?
         var bestD = Int.max
         for c in candidates {
-            guard isWalkable(c.0, c.1), let d = dist[key(c.0, c.1)], d < bestD else { continue }
+            guard isWalkable(c.0, c.1, occupied: occupied), let d = dist[key(c.0, c.1)], d < bestD else { continue }
             bestD = d
             best = (c.0, c.1)
         }

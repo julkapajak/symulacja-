@@ -17,6 +17,7 @@ struct GameSaveData: Codable {
     var day: Int
     var minutesOfDay: Double
     var sim: SimSaveData
+    var items: [PlacedItem]
 }
 
 enum SaveStore {

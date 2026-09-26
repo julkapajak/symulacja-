@@ -44,8 +44,13 @@ final class SimNode: SKNode {
     var jobLevel = 0
     var shiftsWorked = 0
     var currentAction: ActiveAction?
-    var pendingActionID: String?
+    var pendingItemID: String?
     private var warned: Set<String> = []
+
+    /// Set by GameScene right after construction. Actions/pathfinding look up furniture through
+    /// it (rather than the old static World.starterItems) so build mode's add/move/remove is
+    /// reflected immediately.
+    var buildState: BuildState!
 
     init(startX: Int, startY: Int, color: SKColor, name: String) {
         gridX = CGFloat(startX)
@@ -121,30 +126,31 @@ final class SimNode: SKNode {
 
     // MARK: - Actions
 
-    /// Walks toward the given furniture type (by catalog id) to use it once in range. Cancels
-    /// whatever the Sim was doing before.
+    /// Walks toward the given placed item (by its unique id, not type — build mode can have
+    /// several of the same type) to use it once in range. Cancels whatever the Sim was doing.
     @discardableResult
-    func startAction(towardItemType type: String) -> Bool {
-        guard let placement = World.starterItems.first(where: { $0.type == type }) else { return false }
-        guard let route = Pathfinding.findPathToNeighbor(from: tile, target: (placement.x, placement.y)) else { return false }
+    func startAction(towardItemID id: String) -> Bool {
+        guard let item = buildState.item(withID: id) else { return false }
+        guard let route = Pathfinding.findPathToNeighbor(from: tile, target: (item.x, item.y), occupied: buildState.occupiedTiles()) else { return false }
         currentAction = nil
         path = route
-        pendingActionID = type
+        pendingItemID = id
         return true
     }
 
     func cancelCurrentActivity() {
         currentAction = nil
-        pendingActionID = nil
+        pendingItemID = nil
         path = []
     }
 
     /// Called once per frame after movement: if the Sim just arrived at a pending target, begin
-    /// using it. Returns a toast message if something happened.
+    /// using it. Returns a toast message if something happened. If the target was sold out from
+    /// under it mid-walk (build mode), this just quietly does nothing.
     func beginPendingActionIfArrived(hour: Int) -> String? {
-        guard let itemID = pendingActionID, path.isEmpty else { return nil }
-        pendingActionID = nil
-        guard let action = World.furnitureCatalog[itemID]?.action else { return nil }
+        guard let itemID = pendingItemID, path.isEmpty else { return nil }
+        pendingItemID = nil
+        guard let item = buildState.item(withID: itemID), let action = World.furnitureCatalog[item.type]?.action else { return nil }
         if action.isWork && (hour < 8 || hour >= 18) {
             return "Praca dostępna tylko w godzinach 8:00–18:00."
         }
@@ -238,15 +244,15 @@ final class SimNode: SKNode {
     /// If idle and something is critically low, walk over and take care of it (mirrors app.js's
     /// autonomyTick with proactive=false, since there's no housemate yet to justify wandering).
     func tryAutonomy() -> String? {
-        guard currentAction == nil, pendingActionID == nil, path.isEmpty else { return nil }
+        guard currentAction == nil, pendingItemID == nil, path.isEmpty else { return nil }
         let threshold = 15.0
         let needy = NeedKeys.all
             .filter { (needs[$0] ?? 100) <= threshold }
             .sorted { (needs[$0] ?? 100) < (needs[$1] ?? 100) }
         guard let need = needy.first else { return nil }
 
-        let candidates = World.starterItems.filter { placement in
-            guard let action = World.furnitureCatalog[placement.type]?.action else { return false }
+        let candidates = buildState.items.filter { item in
+            guard let action = World.furnitureCatalog[item.type]?.action else { return false }
             return !action.isWork && action.need == need
         }
         guard !candidates.isEmpty else { return nil }
@@ -255,9 +261,9 @@ final class SimNode: SKNode {
         let target = candidates.min {
             (abs($0.x - here.x) + abs($0.y - here.y)) < (abs($1.x - here.x) + abs($1.y - here.y))
         }!
-        guard let route = Pathfinding.findPathToNeighbor(from: here, target: (target.x, target.y)) else { return nil }
+        guard let route = Pathfinding.findPathToNeighbor(from: here, target: (target.x, target.y), occupied: buildState.occupiedTiles()) else { return nil }
         path = route
-        pendingActionID = target.type
+        pendingItemID = target.id
         if let meta = NeedCatalog.table[need] {
             return "\(simName) sam idzie zaspokoić potrzebę: \(meta.label)"
         }
