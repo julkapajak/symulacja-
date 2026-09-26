@@ -5,7 +5,7 @@ To jest natywna aplikacja SwiftUI, oddzielna od wersji przeglądarkowej w katalo
 Skrót tego, co było w 2D (Fazy 1-2), teraz przeniesione na 3D:
 
 - **Dotknij pustego pola**, żeby Sim tam poszedł — prawdziwy pathfinding (BFS) omija ściany i meble.
-- **Przeciągnij**, żeby obrócić kamerę wokół domu (pełne 360°, w dowolną stronę).
+- **Przeciągnij**, żeby obrócić kamerę wokół domu (pełne 360° w poziomie) — kąt patrzenia w dół na ziemię jest stały, jak w The Sims, więc podłoga nigdy się nie "przechyla".
 - **Uszczypnij (pinch)**, żeby przybliżyć/oddalić.
 
 Faza 3 dodaje samą rozgrywkę:
@@ -56,7 +56,7 @@ W Xcode:
 2. Naciśnij ▶ (albo `Cmd+R`).
 3. Ponieważ masz już zapisaną grę z poprzednich testów, od razu zobaczysz dom (kreator postaci pomija się, gdy zapis już istnieje). Żeby zobaczyć sam kreator, usuń aplikację z symulatora (przytrzymaj ikonę → Usuń) i uruchom ją ponownie od zera.
 4. Powinnaś zobaczyć: niebieskie tło, prawdziwy trójwymiarowy dom (bryły ścian, kolorowe podłogi per pokój, meble jako kolorowe pudełka z unoszącą się nad nimi ikoną) i stojącego Sima (kapsuła + kulista głowa) w wybranym kolorze.
-5. **Przeciągnij palcem/myszką** po ekranie — kamera powinna obracać się swobodnie wokół domu, włącznie z widokiem od góry i z boku (pełne 360°). **Uszczypnij** (na symulatorze: Option + przeciągnięcie) — przybliżenie/oddalenie.
+5. **Przeciągnij palcem/myszką** po ekranie — kamera powinna obracać się wokół domu w poziomie (pełne 360°), przy zawsze takim samym kącie patrzenia w dół, jak w The Sims. **Uszczypnij** (na symulatorze: Option + przeciągnięcie) — przybliżenie/oddalenie.
 6. Dotknij dowolnego wolnego pola podłogi — Sim powinien tam dojść, omijając ściany. Dotknij lodówki, łóżka, prysznica, TV albo komputera — Sim podejdzie i zacznie z nich korzystać (dymek z komunikatem, pasek potrzeby rośnie). Dotknij samochodu w godzinach 8:00–18:00, żeby poszedł do pracy.
 7. Zamknij i ponownie uruchom aplikację — stan gry powinien zostać taki, jaki był.
 8. Dotknij 🔨 w prawym górnym rogu, wybierz mebel z paska na dole, dotknij puste pole żeby go postawić. Dotknij dowolny mebel (nadal w trybie budowania), żeby go sprzedać za połowę ceny.

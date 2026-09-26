@@ -22,14 +22,15 @@ final class GameCoordinator: NSObject, SCNSceneRendererDelegate, UIGestureRecogn
     /// assignment lands.
     var hud: GameHUDModel?
 
-    // Camera orbit state (spherical coordinates around the house's center).
+    // Camera orbit state (spherical coordinates around the house's center). Pitch is a fixed
+    // constant, not user-controllable — like the classic Sims camera, dragging only spins the
+    // view around the house (yaw); the ground's tilt on screen never changes, only zoom and
+    // which side you're looking from do.
     private var yaw: Float = .pi / 4
-    private var pitch: Float = 0.55
+    private let pitch: Float = 0.62
     private var radius: Float = 16
     private let minRadius: Float = 5
     private let maxRadius: Float = 26
-    private let minPitch: Float = 0.12
-    private let maxPitch: Float = 1.45
 
     private var lastUpdateTime: TimeInterval = 0
 
@@ -139,7 +140,6 @@ final class GameCoordinator: NSObject, SCNSceneRendererDelegate, UIGestureRecogn
         guard let view else { return }
         let t = gesture.translation(in: view)
         yaw -= Float(t.x) * 0.006
-        pitch = min(maxPitch, max(minPitch, pitch + Float(t.y) * 0.006))
         gesture.setTranslation(.zero, in: view)
         updateCameraTransform()
     }
