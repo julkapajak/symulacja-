@@ -6,7 +6,7 @@ struct Toast: Identifiable {
     let text: String
 }
 
-/// The bridge between GameScene (SpriteKit, driving the simulation every frame) and HUDView
+/// The bridge between GameCoordinator (SceneKit, driving the simulation every frame) and HUDView
 /// (SwiftUI). GameScene writes to these @Published properties from its update(_:) loop; SwiftUI
 /// re-renders whenever they change. Toasts mirror app.js's toast() — auto-dismiss after 4s.
 final class GameHUDModel: ObservableObject {

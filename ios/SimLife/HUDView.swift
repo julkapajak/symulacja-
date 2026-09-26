@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The glass HUD overlaid on top of the SpriteKit scene: money/day/time/job up top, need bars
+/// The glass HUD overlaid on top of the 3D scene: money/day/time/job up top, need bars
 /// down below, toasts in between — a lightweight native stand-in for app.js's HTML HUD.
 struct HUDView: View {
     @ObservedObject var model: GameHUDModel

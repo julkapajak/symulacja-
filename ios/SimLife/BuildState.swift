@@ -10,10 +10,10 @@ struct PlacedItem: Codable, Equatable {
     var y: Int
 }
 
-/// Owns the mutable list of furniture in the house — the model half of build mode. GameScene
-/// keeps the visual SKNodes in sync with this; SimNode consults it for pathfinding/action
-/// lookups instead of the old static World.starterItems. Mirrors app.js's state.items +
-/// itemAt/occupiedTiles, but with real add/move/remove instead of just reading a fixed array.
+/// Owns the mutable list of furniture in the house — the model half of build mode. GameCoordinator
+/// keeps the visual SCNNodes in sync with this; SimNode consults it for pathfinding/action
+/// lookups instead of a static list. Mirrors app.js's state.items + itemAt/occupiedTiles, but
+/// with real add/remove instead of just reading a fixed array.
 final class BuildState {
     private(set) var items: [PlacedItem]
     private var nextID: Int

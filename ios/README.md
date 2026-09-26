@@ -1,10 +1,12 @@
-# SimLife na iPada — Faza 7 (kreator postaci)
+# SimLife na iPada — Faza 8 (prawdziwe 3D)
 
-To jest natywna aplikacja SwiftUI + SpriteKit, oddzielna od wersji przeglądarkowej w katalogu głównym repo. Faza 0 udowodniła, że cały łańcuch narzędzi (XcodeGen → Xcode → symulator) działa. Faza 1 przeniosła prawdziwy dom z `app.js`. Faza 2 dodała ruch i gesty:
+To jest natywna aplikacja SwiftUI, oddzielna od wersji przeglądarkowej w katalogu głównym repo. Faza 0 udowodniła, że cały łańcuch narzędzi (XcodeGen → Xcode → symulator) działa. Fazy 1-7 zbudowały pełną rozgrywkę w silniku 2D (SpriteKit, izometryczny rzut jak w wersji przeglądarkowej). **Faza 8 to duża zmiana architektoniczna: przepisanie całego renderowania na prawdziwe 3D (SceneKit)** z kamerą, którą można swobodnie obracać wokół domu (pełne 360°) i przybliżać/oddalać — na życzenie, zamiast stałego kąta izometrycznego. Cała rozgrywka (potrzeby, akcje, kariera, aspiracje, tryb budowania, zapis) działa identycznie jak wcześniej — zmienił się tylko sposób rysowania i oglądania świata.
+
+Skrót tego, co było w 2D (Fazy 1-2), teraz przeniesione na 3D:
 
 - **Dotknij pustego pola**, żeby Sim tam poszedł — prawdziwy pathfinding (BFS) omija ściany i meble.
-- **Przeciągnij**, żeby przesunąć widok kamery.
-- **Uszczypnij (pinch)**, żeby przybliżyć/oddalić — zoomuje w punkt pod palcami.
+- **Przeciągnij**, żeby obrócić kamerę wokół domu (pełne 360°, w dowolną stronę).
+- **Uszczypnij (pinch)**, żeby przybliżyć/oddalić.
 
 Faza 3 dodaje samą rozgrywkę:
 
@@ -52,14 +54,15 @@ open SimLife.xcodeproj
 W Xcode:
 1. Przy przycisku ▶ (Play) w górnym pasku wybierz symulator, np. **iPad Pro 13-inch (M4)**.
 2. Naciśnij ▶ (albo `Cmd+R`).
-3. Ponieważ masz już zapisaną grę z poprzednich testów, od razu zobaczysz dom (kreator postaci pomija się, gdy zapis już istnieje). Żeby zobaczyć sam kreator (imię/kolor/cecha/aspiracja), usuń aplikację z symulatora (przytrzymaj ikonę → Usuń) i uruchom ją ponownie od zera. Powinnaś zobaczyć ekran z polem na imię, kółkami kolorów, listą cech charakteru i listą aspiracji, a na dole przycisk "Zacznij grę". Po jego dotknięciu zobaczysz: niebieskie niebo ze słońcem, izometryczny dom z pięcioma pokojami (kolorowe podłogi, ściany, okna, dwoje drzwi), startowe meble (lodówka, łóżko, telewizor, itd.) i Twojego Sima w wybranym kolorze.
-4. Dotknij dowolnego wolnego pola (na symulatorze: kliknij myszką) — Sim powinien tam dojść, omijając ściany. Przeciągnij, żeby przesunąć widok. Uszczypnij (na symulatorze: przytrzymaj Option i przeciągnij), żeby przybliżyć/oddalić.
-5. Na dole ekranu powinny być widoczne paski potrzeb, a u góry pieniądze/dzień/godzina/stanowisko. Dotknij lodówki, łóżka, prysznica, TV albo komputera — Sim powinien tam podejść i zacząć z nich korzystać (pojawi się dymek z komunikatem, a odpowiedni pasek potrzeby zacznie rosnąć). Dotknij samochodu w godzinach 8:00–18:00, żeby Sim poszedł do pracy.
-6. Zamknij i ponownie uruchom aplikację (Cmd+R) — stan gry (pieniądze, dzień, potrzeby) powinien zostać taki, jaki był, zamiast zresetować się do dnia 1.
-7. Dotknij 🔨 w prawym górnym rogu — na dole powinien pojawić się pasek z ikonami mebli do kupienia. Wybierz jeden, dotknij puste pole w domu, żeby go postawić. Dotknij dowolny mebel (nadal w trybie budowania), żeby go sprzedać za połowę ceny.
-8. Obok pieniędzy/dnia/godziny w górnym pasku powinien być widoczny mały chip z ikoną i paskiem postępu — to aspiracja wybrana w kreatorze (albo losowa, jeśli testujesz na starym zapisie sprzed Fazy 7).
+3. Ponieważ masz już zapisaną grę z poprzednich testów, od razu zobaczysz dom (kreator postaci pomija się, gdy zapis już istnieje). Żeby zobaczyć sam kreator, usuń aplikację z symulatora (przytrzymaj ikonę → Usuń) i uruchom ją ponownie od zera.
+4. Powinnaś zobaczyć: niebieskie tło, prawdziwy trójwymiarowy dom (bryły ścian, kolorowe podłogi per pokój, meble jako kolorowe pudełka z unoszącą się nad nimi ikoną) i stojącego Sima (kapsuła + kulista głowa) w wybranym kolorze.
+5. **Przeciągnij palcem/myszką** po ekranie — kamera powinna obracać się swobodnie wokół domu, włącznie z widokiem od góry i z boku (pełne 360°). **Uszczypnij** (na symulatorze: Option + przeciągnięcie) — przybliżenie/oddalenie.
+6. Dotknij dowolnego wolnego pola podłogi — Sim powinien tam dojść, omijając ściany. Dotknij lodówki, łóżka, prysznica, TV albo komputera — Sim podejdzie i zacznie z nich korzystać (dymek z komunikatem, pasek potrzeby rośnie). Dotknij samochodu w godzinach 8:00–18:00, żeby poszedł do pracy.
+7. Zamknij i ponownie uruchom aplikację — stan gry powinien zostać taki, jaki był.
+8. Dotknij 🔨 w prawym górnym rogu, wybierz mebel z paska na dole, dotknij puste pole żeby go postawić. Dotknij dowolny mebel (nadal w trybie budowania), żeby go sprzedać za połowę ceny.
+9. Obok pieniędzy/dnia/godziny w górnym pasku powinien być widoczny chip z ikoną i paskiem postępu aspiracji.
 
-Jeśli to działa — mamy solidny szkielet gry. Dalej w planie: współlokator (drugi Sim + relacje).
+Jeśli to działa — mamy solidny szkielet gry w prawdziwym 3D. Dalej w planie: bogata personalizacja wyglądu Sima (naturalne odcienie skóry, włosy, ubrania, sylwetka) i współlokator (drugi Sim + relacje).
 
 ## Testowanie na prawdziwym iPadzie (opcjonalnie, już teraz)
 
@@ -74,7 +77,7 @@ Ograniczenie darmowego konta: certyfikat wygasa po 7 dniach (trzeba wtedy ponown
 
 ## Co dalej
 
-Kolejne fazy (patrz plan w rozmowie z Claude) przeniosą właściwą logikę gry — świat, Sima, potrzeby, kariery, tryb budowania — z wersji przeglądarkowej (`app.js`) na Swift, rozbudowując pliki w `SimLife/`. `GameScene.swift` to miejsce, gdzie to wszystko będzie się działo.
+`GameCoordinator.swift` (SceneKit) to teraz odpowiednik dawnego `GameScene.swift` — cała logika sceny 3D, kamera i gesty. Kolejne fazy: bogaty kreator wyglądu Sima (skóra/włosy/ubrania/sylwetka jako osobne, wymienne modele 3D) i współlokator (drugi Sim + relacje).
 
 ## CI (siatka bezpieczeństwa)
 

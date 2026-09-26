@@ -1,4 +1,4 @@
-import SpriteKit
+import SceneKit
 
 /// An action currently in progress (using a piece of furniture, or working). Mirrors app.js's
 /// sim.action.
@@ -15,29 +15,29 @@ struct ActiveAction {
     var elapsed: Double = 0
 }
 
-/// What finishing a tick of simulation produced, so GameScene can apply the money change and
-/// show the toast without SimNode needing to know about the HUD.
+/// What finishing a tick of simulation produced, so the coordinator can apply the money change
+/// and show the toast without SimNode needing to know about the HUD.
 struct ActionResult {
     let message: String
     let moneyDelta: Double
 }
 
-/// A Sim that can walk a queued path of grid tiles and use furniture along the way. Its visual
-/// children are built once, relative to its own local origin (0,0 in scene space);
-/// `updateScreenPosition()` then just moves the whole node to match its current (possibly
-/// fractional, mid-step) grid position each frame — mirrors app.js's moveSimAlongPath, but
-/// SpriteKit repositions the node instead of redrawing it. The needs/skills/career/action
-/// methods below mirror app.js's applyNeedDecay/progressAction/checkWarnings/autonomyTick/
-/// startAction/finishAction.
-final class SimNode: SKNode {
+/// A Sim that can walk a queued path of grid tiles and use furniture along the way, rendered as a
+/// real 3D figure (capsule body + sphere head) in the SceneKit world. `updateWorldPosition()`
+/// moves the whole node to match its current (possibly fractional, mid-step) grid position each
+/// frame — mirrors app.js's moveSimAlongPath. The needs/skills/career/action methods below mirror
+/// app.js's applyNeedDecay/progressAction/checkWarnings/autonomyTick/startAction/finishAction —
+/// none of them touch rendering at all, which is why this class survived the SpriteKit → SceneKit
+/// rewrite almost unchanged below the visuals.
+final class SimNode: SCNNode {
     let simName: String
-    var gridX: CGFloat
-    var gridY: CGFloat
+    var gridX: Float
+    var gridY: Float
     var path: [(x: Int, y: Int)] = []
 
-    // Named walkSpeed, not speed: SKNode already declares a `speed` property
+    // Named walkSpeed, not speed: SCNNode already declares a `speed` property
     // (it scales the playback rate of actions run on this node).
-    let walkSpeed: CGFloat = 4.2 // tiles per second, matches app.js sim.speed
+    let walkSpeed: Float = 4.2 // tiles per second, matches app.js sim.speed
 
     var needs: [String: Double]
     var skills: [String: Double] = ["cooking": 0, "fitness": 0, "charisma": 0]
@@ -47,73 +47,67 @@ final class SimNode: SKNode {
     var pendingItemID: String?
     private var warned: Set<String> = []
 
-    // Auto-assigned by default; the character creator (ContentView/GameScene.configureNewCharacter)
-    // overwrites these before the first frame if the player made an explicit choice.
+    // Auto-assigned by default; the character creator (ContentView/GameCoordinator.
+    // configureNewCharacter) overwrites these before the first frame if the player made an
+    // explicit choice.
     var aspiration: String?
     var aspirationDone = false
     var trait: String?
 
-    /// Set by GameScene right after construction. Actions/pathfinding look up furniture through
-    /// it (rather than the old static World.starterItems) so build mode's add/move/remove is
-    /// reflected immediately.
+    /// Set by GameCoordinator right after construction. Actions/pathfinding look up furniture
+    /// through it (rather than a static list) so build mode's add/move/remove is reflected
+    /// immediately.
     var buildState: BuildState!
 
-    init(startX: Int, startY: Int, color: SKColor, name: String) {
-        gridX = CGFloat(startX)
-        gridY = CGFloat(startY)
+    init(startX: Int, startY: Int, color: UIColor, name: String) {
+        gridX = Float(startX)
+        gridY = Float(startY)
         simName = name
         needs = Dictionary(uniqueKeysWithValues: NeedKeys.all.map { ($0, 85.0) })
         aspiration = AspirationCatalog.all.keys.randomElement()
         super.init()
         buildVisuals(color: color, name: name)
-        updateScreenPosition()
+        updateWorldPosition()
     }
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 
-    private func buildVisuals(color: SKColor, name: String) {
-        let shadow = SKShapeNode(ellipseOf: CGSize(width: Iso.tileWidth * 0.5, height: Iso.tileHeight * 0.45))
-        shadow.fillColor = SKColor.black.withAlphaComponent(0.28)
-        shadow.strokeColor = .clear
-        addChild(shadow)
+    private func buildVisuals(color: UIColor, name: String) {
+        let bodyHeight: CGFloat = 0.7
+        let body = SCNCapsule(capRadius: 0.16, height: bodyHeight)
+        body.firstMaterial?.diffuse.contents = color
+        let bodyNode = SCNNode(geometry: body)
+        bodyNode.position = SCNVector3(0, Float(bodyHeight / 2) + 0.05, 0)
+        addChildNode(bodyNode)
 
-        let bodyHeight: CGFloat = 46
-        let body = SKShapeNode(rectOf: CGSize(width: 16, height: bodyHeight), cornerRadius: 7)
-        body.fillColor = color
-        body.strokeColor = SKColor.black.withAlphaComponent(0.25)
-        body.position = CGPoint(x: 0, y: bodyHeight / 2 + 4)
-        addChild(body)
+        let head = SCNSphere(radius: 0.15)
+        head.firstMaterial?.diffuse.contents = UIColor(hex: "#f2c9a0")
+        let headNode = SCNNode(geometry: head)
+        headNode.position = SCNVector3(0, Float(bodyHeight) + 0.05 + 0.15, 0)
+        addChildNode(headNode)
 
-        let head = SKShapeNode(circleOfRadius: 9)
-        head.fillColor = SKColor(hex: "#f2c9a0")
-        head.strokeColor = SKColor.black.withAlphaComponent(0.25)
-        head.position = CGPoint(x: 0, y: bodyHeight + 13)
-        addChild(head)
-
-        let label = SKLabelNode(text: name)
-        label.fontName = "AvenirNext-Bold"
-        label.fontSize = 12
-        label.fontColor = .white
-        label.position = CGPoint(x: 0, y: bodyHeight + 34)
-        addChild(label)
+        let label = makeBillboardLabel(name, size: 0.22)
+        label.position = SCNVector3(0, Float(bodyHeight) + 0.5, 0)
+        addChildNode(label)
     }
 
-    func updateScreenPosition() {
-        position = Iso.toScene(Iso.project(gridX, gridY))
-        zPosition = 2000 + gridX + gridY + 0.5
+    func updateWorldPosition() {
+        position = SCNVector3(gridX, 0, gridY)
+        name = "sim"
     }
 
     var tile: (x: Int, y: Int) {
         (Int(gridX.rounded()), Int(gridY.rounded()))
     }
 
-    /// Advances along the queued path by `dt` seconds, matching app.js's step-toward-target logic.
-    func advance(dt: CGFloat) {
+    /// Advances along the queued path by `dt` seconds, matching app.js's step-toward-target logic,
+    /// and turns to face the direction of travel.
+    func advance(dt: Float) {
         guard let target = path.first else { return }
-        let dx = CGFloat(target.x) - gridX
-        let dy = CGFloat(target.y) - gridY
+        let dx = Float(target.x) - gridX
+        let dy = Float(target.y) - gridY
         let dist = (dx * dx + dy * dy).squareRoot()
         if dist == 0 {
             path.removeFirst()
@@ -121,14 +115,15 @@ final class SimNode: SKNode {
         }
         let step = walkSpeed * dt
         if step >= dist {
-            gridX = CGFloat(target.x)
-            gridY = CGFloat(target.y)
+            gridX = Float(target.x)
+            gridY = Float(target.y)
             path.removeFirst()
         } else {
             gridX += (dx / dist) * step
             gridY += (dy / dist) * step
         }
-        updateScreenPosition()
+        eulerAngles.y = atan2(dx, dy)
+        updateWorldPosition()
     }
 
     // MARK: - Actions
@@ -318,8 +313,8 @@ final class SimNode: SKNode {
     /// Restores a save onto this node, teleporting it (no walk animation) to the saved tile and
     /// clearing any in-progress path/action, since the path/action referred to the old session.
     func applySaveData(_ data: SimSaveData) {
-        gridX = CGFloat(data.gridX)
-        gridY = CGFloat(data.gridY)
+        gridX = Float(data.gridX)
+        gridY = Float(data.gridY)
         needs = data.needs
         skills = data.skills
         jobLevel = data.jobLevel
@@ -328,6 +323,6 @@ final class SimNode: SKNode {
         aspirationDone = data.aspirationDone
         trait = data.trait
         cancelCurrentActivity()
-        updateScreenPosition()
+        updateWorldPosition()
     }
 }
