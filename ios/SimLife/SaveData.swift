@@ -24,6 +24,7 @@ struct GameSaveData: Codable {
     var items: [PlacedItem]
     var relationship: Double
     var partner: SimSaveData?
+    var weather: String
 }
 
 enum SaveStore {

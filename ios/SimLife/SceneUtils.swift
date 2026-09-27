@@ -18,6 +18,21 @@ extension UIColor {
         getRed(&r, green: &g, blue: &b, alpha: &a)
         return UIColor(red: min(1, r * factor), green: min(1, g * factor), blue: min(1, b * factor), alpha: a)
     }
+
+    /// Linear blend toward another color — used for the sky/lighting's day-night interpolation.
+    func lerp(to other: UIColor, t: CGFloat) -> UIColor {
+        var r1: CGFloat = 0, g1: CGFloat = 0, b1: CGFloat = 0, a1: CGFloat = 0
+        var r2: CGFloat = 0, g2: CGFloat = 0, b2: CGFloat = 0, a2: CGFloat = 0
+        getRed(&r1, green: &g1, blue: &b1, alpha: &a1)
+        other.getRed(&r2, green: &g2, blue: &b2, alpha: &a2)
+        let clampedT = min(1, max(0, t))
+        return UIColor(
+            red: r1 + (r2 - r1) * clampedT,
+            green: g1 + (g2 - g1) * clampedT,
+            blue: b1 + (b2 - b1) * clampedT,
+            alpha: a1 + (a2 - a1) * clampedT
+        )
+    }
 }
 
 /// Deterministic tiny PRNG so decorative details are stable across frames without needing to

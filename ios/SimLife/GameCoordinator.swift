@@ -17,6 +17,19 @@ final class GameCoordinator: NSObject, SCNSceneRendererDelegate, UIGestureRecogn
     private var buildState: BuildState!
     private var furnitureNodes: [String: SCNNode] = [:]
 
+    // Day/night sky + weather (Faza 12) — the lights are stored properties (rather than locals in
+    // setUpLighting()) so updateSkyAndLighting(hour:) can retune their intensity/color every
+    // simulated minute; grassMaterials lets the seasonal yard color be repainted in place instead
+    // of rebuilding the floor geometry whenever the day or weather changes.
+    private let ambientLightNode = SCNNode()
+    private let sunLightNode = SCNNode()
+    private let fillLightNode = SCNNode()
+    private var grassMaterials: [SCNMaterial] = []
+    private let weatherEmitterNode = SCNNode()
+    private lazy var rainParticleSystem = WeatherParticles.makeRain()
+    private lazy var snowParticleSystem = WeatherParticles.makeSnow()
+    private var weather: Weather = .clear
+
     weak var view: SCNView?
 
     /// Set by ContentView right after creating the coordinator. renderer(_:updateAtTime:) pushes
@@ -104,12 +117,20 @@ final class GameCoordinator: NSObject, SCNSceneRendererDelegate, UIGestureRecogn
         guard !hasStarted else { return }
         hasStarted = true
 
-        scene.background.contents = UIColor(hex: "#8ec9f0")
         setUpLighting()
         setUpCamera()
+        setUpWeatherEmitter()
 
         let savedData = SaveStore.load()
         buildState = BuildState(items: savedData?.items ?? World.starterItems)
+
+        // A save carries the weather it was written with (mirrors app.js's loadGame()); a brand
+        // new game rolls fresh weather for day 1, same as app.js's boot()-time rollWeather().
+        if let savedWeather = savedData?.weather, let parsed = Weather(rawValue: savedWeather) {
+            weather = parsed
+        } else {
+            weather = WeatherSystem.rollWeather(forDay: day)
+        }
 
         // Read before buildWorld() so it knows whether to construct a partner node at all —
         // applySaveData(_:) below only updates an *existing* node's stats/appearance, it can't
@@ -136,35 +157,81 @@ final class GameCoordinator: NSObject, SCNSceneRendererDelegate, UIGestureRecogn
             }
         }
 
+        updateSkyAndLighting(hour: minutesOfDay / 60)
+        updateWeatherVisuals()
+
         NotificationCenter.default.addObserver(self, selector: #selector(persistState), name: UIApplication.willResignActiveNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(persistState), name: UIApplication.didEnterBackgroundNotification, object: nil)
     }
 
     private func setUpLighting() {
-        let ambient = SCNNode()
-        ambient.light = SCNLight()
-        ambient.light!.type = .ambient
-        ambient.light!.color = UIColor(white: 0.55, alpha: 1)
-        scene.rootNode.addChildNode(ambient)
+        ambientLightNode.light = SCNLight()
+        ambientLightNode.light!.type = .ambient
+        ambientLightNode.light!.color = UIColor(white: 0.55, alpha: 1)
+        scene.rootNode.addChildNode(ambientLightNode)
 
-        let sun = SCNNode()
-        sun.light = SCNLight()
-        sun.light!.type = .directional
-        sun.light!.color = UIColor(white: 1.0, alpha: 1)
-        sun.light!.castsShadow = true
-        sun.light!.shadowMode = .deferred
-        sun.eulerAngles = SCNVector3(-Float.pi / 3, Float.pi / 4, 0)
-        scene.rootNode.addChildNode(sun)
+        sunLightNode.light = SCNLight()
+        sunLightNode.light!.type = .directional
+        sunLightNode.light!.color = UIColor(white: 1.0, alpha: 1)
+        sunLightNode.light!.castsShadow = true
+        sunLightNode.light!.shadowMode = .deferred
+        sunLightNode.eulerAngles = SCNVector3(-Float.pi / 3, Float.pi / 4, 0)
+        scene.rootNode.addChildNode(sunLightNode)
 
         // A dimmer, opposite-facing fill light softens the shadow side of walls/furniture instead
-        // of leaving it flat black, without the cost of a second shadow-casting light.
-        let fill = SCNNode()
-        fill.light = SCNLight()
-        fill.light!.type = .directional
-        fill.light!.color = UIColor(white: 0.35, alpha: 1)
-        fill.light!.castsShadow = false
-        fill.eulerAngles = SCNVector3(-Float.pi / 5, -Float.pi * 3 / 4, 0)
-        scene.rootNode.addChildNode(fill)
+        // of leaving it flat black, without the cost of a second shadow-casting light. At night it
+        // doubles as faint moonlight (see updateSkyAndLighting).
+        fillLightNode.light = SCNLight()
+        fillLightNode.light!.type = .directional
+        fillLightNode.light!.color = UIColor(white: 0.35, alpha: 1)
+        fillLightNode.light!.castsShadow = false
+        fillLightNode.eulerAngles = SCNVector3(-Float.pi / 5, -Float.pi * 3 / 4, 0)
+        scene.rootNode.addChildNode(fillLightNode)
+    }
+
+    /// Faza 12: retunes the sky color and the three lights for the given hour-of-day (0..<24) —
+    /// called once per simulated minute (see tickMinute), mirroring app.js's skyColors/nightAmount/
+    /// warmAmount, which it drove straight into the 2D canvas render every frame. A SceneKit scene
+    /// only needs the underlying color/intensity values updated, not a redraw.
+    private func updateSkyAndLighting(hour: Double) {
+        scene.background.contents = WeatherSystem.skyColor(atHour: hour)
+
+        let night = WeatherSystem.nightAmount(atHour: hour)
+        let warm = WeatherSystem.warmAmount(atHour: hour)
+        let nightFactor = CGFloat(night)
+
+        let moonBlue = UIColor(red: 0.55, green: 0.62, blue: 0.85, alpha: 1)
+        let sunWarm = UIColor(red: 1, green: 0.75, blue: 0.45, alpha: 1)
+
+        ambientLightNode.light!.color = UIColor(white: 0.55, alpha: 1).lerp(to: UIColor(white: 0.18, alpha: 1), t: nightFactor)
+        ambientLightNode.light!.intensity = 1000 - 650 * nightFactor
+
+        sunLightNode.light!.color = UIColor(white: 1, alpha: 1).lerp(to: sunWarm, t: CGFloat(warm))
+        sunLightNode.light!.intensity = 1000 * (1 - nightFactor)
+
+        fillLightNode.light!.color = UIColor(white: 0.35, alpha: 1).lerp(to: moonBlue, t: nightFactor)
+        fillLightNode.light!.intensity = 350 + 250 * nightFactor
+    }
+
+    private func setUpWeatherEmitter() {
+        weatherEmitterNode.position = SCNVector3(Float(World.cols) / 2, 6, Float(World.rows) / 2)
+        worldNode.addChildNode(weatherEmitterNode)
+    }
+
+    /// Repaints the yard for the current season/weather and switches the rain/snow particle
+    /// system — called once at startup and again whenever a new day rolls fresh weather.
+    private func updateWeatherVisuals() {
+        let grassColor = WeatherSystem.grassColor(forDay: day, weather: weather)
+        for material in grassMaterials {
+            material.diffuse.contents = grassColor
+        }
+
+        weatherEmitterNode.removeAllParticleSystems()
+        switch weather {
+        case .clear: break
+        case .rain: weatherEmitterNode.addParticleSystem(rainParticleSystem)
+        case .snow: weatherEmitterNode.addParticleSystem(snowParticleSystem)
+        }
     }
 
     private func setUpCamera() {
@@ -418,6 +485,8 @@ final class GameCoordinator: NSObject, SCNSceneRendererDelegate, UIGestureRecogn
     private func pushHUD(to hud: GameHUDModel) {
         hud.money = money
         hud.day = day
+        hud.season = WeatherSystem.seasonName(forDay: day)
+        hud.weatherIcon = weather.hudIcon
         hud.timeLabel = formattedTime()
         hud.jobTitle = CareerCatalog.jobTitles[simNode.jobLevel]
         hud.needs = simNode.needs
@@ -447,7 +516,10 @@ final class GameCoordinator: NSObject, SCNSceneRendererDelegate, UIGestureRecogn
         while minutesOfDay >= 1440 {
             minutesOfDay -= 1440
             day += 1
+            weather = WeatherSystem.rollWeather(forDay: day)
+            updateWeatherVisuals()
         }
+        updateSkyAndLighting(hour: minutesOfDay / 60)
 
         simNode.applyNeedDecay(minutes: 1)
         if let result = simNode.progressAction(minutes: 1) {
@@ -493,7 +565,7 @@ final class GameCoordinator: NSObject, SCNSceneRendererDelegate, UIGestureRecogn
     @objc private func persistState() {
         let data = GameSaveData(
             money: money, day: day, minutesOfDay: minutesOfDay, sim: simNode.saveData, items: buildState.items,
-            relationship: relationship, partner: partnerNode?.saveData
+            relationship: relationship, partner: partnerNode?.saveData, weather: weather.rawValue
         )
         SaveStore.save(data)
     }
@@ -541,7 +613,7 @@ final class GameCoordinator: NSObject, SCNSceneRendererDelegate, UIGestureRecogn
         case "tile":
             color = UIColor(hex: zone.color).shaded(checker ? 1.0 : 0.9)
         case "grass":
-            color = UIColor(hex: "#7ec46a")
+            color = WeatherSystem.grassColor(forDay: day, weather: weather)
         default:
             color = UIColor(hex: zone.color)
         }
@@ -553,6 +625,7 @@ final class GameCoordinator: NSObject, SCNSceneRendererDelegate, UIGestureRecogn
         material.roughness.contents = zone.floorType == "tile" ? 0.25 : (zone.floorType == "grass" ? 0.95 : 0.6)
         material.metalness.contents = 0.0
         geometry.materials = [material]
+        if zone.floorType == "grass" { grassMaterials.append(material) }
         let node = SCNNode(geometry: geometry)
         node.position = SCNVector3(Float(tx), -0.03, Float(ty))
         node.name = "floor:\(tx):\(ty)"

@@ -12,6 +12,8 @@ struct Toast: Identifiable {
 final class GameHUDModel: ObservableObject {
     @Published var money: Double = 500
     @Published var day: Int = 1
+    @Published var season: String = "Wiosna"
+    @Published var weatherIcon: String = ""
     @Published var timeLabel: String = "08:00"
     @Published var jobTitle: String = CareerCatalog.jobTitles[0]
     @Published var needs: [String: Double] = Dictionary(uniqueKeysWithValues: NeedKeys.all.map { ($0, 85.0) })

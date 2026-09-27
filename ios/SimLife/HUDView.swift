@@ -29,7 +29,7 @@ struct HUDView: View {
     private var topBar: some View {
         HStack(spacing: 16) {
             hudChip(icon: "💰", text: "\(Int(model.money)) zł")
-            hudChip(icon: "☀️", text: "Dzień \(model.day)")
+            hudChip(icon: "☀️", text: "Dzień \(model.day) · \(model.season)\(model.weatherIcon)")
             hudChip(icon: "🕒", text: model.timeLabel)
             aspirationChip
             if model.hasPartner {

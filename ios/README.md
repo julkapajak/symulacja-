@@ -1,4 +1,4 @@
-# SimLife na iPada — Faza 11 (realistyczna grafika)
+# SimLife na iPada — Faza 12 (cykl dnia/nocy i pogoda)
 
 To jest natywna aplikacja SwiftUI, oddzielna od wersji przeglądarkowej w katalogu głównym repo. Faza 0 udowodniła, że cały łańcuch narzędzi (XcodeGen → Xcode → symulator) działa. Fazy 1-7 zbudowały pełną rozgrywkę w silniku 2D (SpriteKit, izometryczny rzut jak w wersji przeglądarkowej). **Faza 8 to duża zmiana architektoniczna: przepisanie całego renderowania na prawdziwe 3D (SceneKit)** z kamerą, którą można swobodnie obracać wokół domu (pełne 360°) i przybliżać/oddalać — na życzenie, zamiast stałego kąta izometrycznego. Cała rozgrywka (potrzeby, akcje, kariera, aspiracje, tryb budowania, zapis) działa identycznie jak wcześniej — zmienił się tylko sposób rysowania i oglądania świata.
 
@@ -59,6 +59,15 @@ Faza 11 poprawia **wygląd** świata, bez zmian w samej rozgrywce:
 - **Poprawione oświetlenie** — dodatkowe, delikatniejsze światło wypełniające z przeciwnej strony niż główne słońce, żeby cieniowana strona ścian i mebli nie była płasko czarna.
 - Usunięto martwe pole `height` z katalogu mebli (rozmiar każdego mebla wynika teraz z jego kształtu, nie z jednej liczby).
 
+Faza 12 dodaje **cykl dnia i nocy oraz pogodę** (przeniesione z wersji przeglądarkowej):
+
+- **Niebo zmienia kolor z porą dnia** — ciemnoniebieska noc, pomarańczowy świt/zachód, jasny błękit w ciągu dnia — a światło robi się cieplejsze o świcie/zachodzie i wyraźnie ciemniejsze (z lekkim niebieskawym księżycowym doświetleniem) w nocy.
+- **4 pory roku** (Wiosna/Lato/Jesień/Zima, po 7 dni każda) — trawnik w ogrodzie zmienia kolor z sezonem, a zimą, gdy akurat pada śnieg, robi się biały.
+- **Losowa pogoda**, losowana raz na nowy dzień (częściej deszcz wiosną/jesienią, częściej śnieg zimą, rzadko latem) — deszcz i śnieg lecą jako prawdziwe cząsteczki nad domem, widoczne też jako ikonka przy dniu w HUD-zie (🌧️/❄️).
+- Pogoda zapisuje się razem z resztą stanu gry.
+
+> **Uwaga:** stary zapis znów się nie wczyta (doszła pogoda) — gra pokaże kreator postaci od nowa, tak jak przy poprzednich zmianach formatu zapisu.
+
 Masz MacBooka Air M1 — to wystarczy, żeby zrobić i przetestować całość lokalnie, bez czekania na CI.
 
 ## Jednorazowe przygotowanie Maca
@@ -92,8 +101,10 @@ W Xcode:
 9. Obok pieniędzy/dnia/godziny w górnym pasku powinien być widoczny chip z ikoną i paskiem postępu aspiracji.
 10. Zamknij i ponownie uruchom aplikację — Sim (i współlokator, jeśli go dodałaś) powinni wrócić z dokładnie takim wyglądem, jaki wybrałaś, i tym samym poziomem bliskości.
 11. Jeśli masz współlokatora: powinnaś zobaczyć serduszko z paskiem bliskości w HUD-zie, a współlokator powinien od czasu do czasu sam iść coś porobić (nie tylko stać w miejscu). Dotknij go — jeśli jest blisko, od razu pojawi się menu (Rozmawiaj/Przytul/Pocałuj — te dwa ostatnie odblokowują się z wyższą bliskością); jeśli jest daleko, Twój Sim najpierw do niego podejdzie.
+12. **Poczekaj i obserwuj niebo** — gra leci szybciej niż realny czas (cała doba to około 3-4 minuty), więc powinnaś zobaczyć, jak niebo z jasnego błękitu robi się pomarańczowe o zachodzie, potem ciemnogranatowe w nocy, i z powrotem jasne rano — dom w nocy powinien być wyraźnie ciemniejszy niż w dzień.
+13. Chip z dniem w górnym pasku powinien pokazywać też porę roku (np. "Dzień 1 · Wiosna") i — jeśli akurat pada — ikonkę 🌧️ albo ❄️ obok niej. Gdy pada, nad domem powinny lecieć krople/płatki śniegu.
 
-Jeśli to działa — mamy kompletną grę: dom w 3D, pełną rozgrywkę, personalizację i współlokatora z relacją. To domyka pierwotną listę funkcji z wersji przeglądarkowej.
+Jeśli to działa — mamy kompletną grę: dom w 3D, pełną rozgrywkę, personalizację, współlokatora z relacją i żywy świat z porami dnia/roku. Dalej w planach: więcej mebli/pomieszczeń, więcej mieszkańców/rodzina i starzenie się z celem "dobrze przeżytego życia".
 
 ## Testowanie na prawdziwym iPadzie (opcjonalnie, już teraz)
 
