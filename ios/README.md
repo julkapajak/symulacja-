@@ -1,4 +1,4 @@
-# SimLife na iPada — Faza 10 (współlokator)
+# SimLife na iPada — Faza 11 (realistyczna grafika)
 
 To jest natywna aplikacja SwiftUI, oddzielna od wersji przeglądarkowej w katalogu głównym repo. Faza 0 udowodniła, że cały łańcuch narzędzi (XcodeGen → Xcode → symulator) działa. Fazy 1-7 zbudowały pełną rozgrywkę w silniku 2D (SpriteKit, izometryczny rzut jak w wersji przeglądarkowej). **Faza 8 to duża zmiana architektoniczna: przepisanie całego renderowania na prawdziwe 3D (SceneKit)** z kamerą, którą można swobodnie obracać wokół domu (pełne 360°) i przybliżać/oddalać — na życzenie, zamiast stałego kąta izometrycznego. Cała rozgrywka (potrzeby, akcje, kariera, aspiracje, tryb budowania, zapis) działa identycznie jak wcześniej — zmienił się tylko sposób rysowania i oglądania świata.
 
@@ -52,6 +52,13 @@ Faza 10 dodaje **współlokatora**:
 - Aspiracja **Miłość Na Całe Życie** (wybierana w kreatorze) spełnia się przy bliskości 100.
 - Współlokator zapisuje się razem z resztą stanu gry.
 
+Faza 11 poprawia **wygląd** świata, bez zmian w samej rozgrywce:
+
+- **Wszystkie 11 sprzętów przebudowane z kilku brył zamiast jednego pudełka** — lodówka ma teraz drzwi i uchwyt, łóżko ma materac/zagłówek/poduszkę, sofa ma oparcie i podłokietniki, regał ma półki z kolorowymi książkami, samochód ma kabinę, szybę i cztery koła, drzewo ma pień i nakładające się korony, itd. — każdy mebel wygląda jak to, czym jest, zamiast jak kolorowe pudełko z ikoną.
+- **Materiały PBR** (fizycznie poprawne oświetlenie — `.physicallyBased`) na meblach, podłogach i ścianach, z dobraną chropowatością/metaliczością per powierzchnia (błyszcząca lodówka, matowa trawa, półprzezroczyste okna).
+- **Poprawione oświetlenie** — dodatkowe, delikatniejsze światło wypełniające z przeciwnej strony niż główne słońce, żeby cieniowana strona ścian i mebli nie była płasko czarna.
+- Usunięto martwe pole `height` z katalogu mebli (rozmiar każdego mebla wynika teraz z jego kształtu, nie z jednej liczby).
+
 Masz MacBooka Air M1 — to wystarczy, żeby zrobić i przetestować całość lokalnie, bez czekania na CI.
 
 ## Jednorazowe przygotowanie Maca
@@ -77,7 +84,7 @@ W Xcode:
 1. Przy przycisku ▶ (Play) w górnym pasku wybierz symulator, np. **iPad Pro 13-inch (M4)**.
 2. Naciśnij ▶ (albo `Cmd+R`).
 3. Ponieważ format zapisu się zmienił, stary zapis się nie wczyta i od razu zobaczysz kreator postaci — przechodź przez kroki przyciskiem "Dalej" (imię → skóra/włosy/fryzura → ubrania/sylwetka → cecha → aspiracja → współlokator). Na ostatnim kroku spróbuj włączyć współlokatora i wybrać mu imię/wygląd, a potem dotknij "Zacznij grę".
-4. Powinnaś zobaczyć: niebieskie tło, prawdziwy trójwymiarowy dom (bryły ścian, kolorowe podłogi per pokój, meble jako kolorowe pudełka z unoszącą się nad nimi ikoną), stojącego Sima w wybranym wyglądzie i — jeśli włączyłaś współlokatora — drugą postać obok.
+4. Powinnaś zobaczyć: niebieskie tło, prawdziwy trójwymiarowy dom (bryły ścian, kolorowe podłogi per pokój, meble o kształtach zbliżonych do prawdziwych przedmiotów — łóżko z materacem, lodówka z drzwiami, sofa z oparciem, itd. — z unoszącą się nad każdym ikoną), stojącego Sima w wybranym wyglądzie i — jeśli włączyłaś współlokatora — drugą postać obok.
 5. **Przeciągnij palcem/myszką** po ekranie — kamera powinna obracać się wokół domu w poziomie (pełne 360°), przy zawsze takim samym kącie patrzenia w dół, jak w The Sims. **Uszczypnij** (na symulatorze: Option + przeciągnięcie) — przybliżenie/oddalenie.
 6. Dotknij dowolnego wolnego pola podłogi — Sim powinien tam dojść, omijając ściany. Dotknij lodówki, łóżka, prysznica, TV albo komputera — Sim podejdzie i zacznie z nich korzystać (dymek z komunikatem, pasek potrzeby rośnie). Dotknij samochodu w godzinach 8:00–18:00, żeby poszedł do pracy.
 7. Zamknij i ponownie uruchom aplikację — stan gry powinien zostać taki, jaki był.

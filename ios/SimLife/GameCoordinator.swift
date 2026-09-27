@@ -155,6 +155,16 @@ final class GameCoordinator: NSObject, SCNSceneRendererDelegate, UIGestureRecogn
         sun.light!.shadowMode = .deferred
         sun.eulerAngles = SCNVector3(-Float.pi / 3, Float.pi / 4, 0)
         scene.rootNode.addChildNode(sun)
+
+        // A dimmer, opposite-facing fill light softens the shadow side of walls/furniture instead
+        // of leaving it flat black, without the cost of a second shadow-casting light.
+        let fill = SCNNode()
+        fill.light = SCNLight()
+        fill.light!.type = .directional
+        fill.light!.color = UIColor(white: 0.35, alpha: 1)
+        fill.light!.castsShadow = false
+        fill.eulerAngles = SCNVector3(-Float.pi / 5, -Float.pi * 3 / 4, 0)
+        scene.rootNode.addChildNode(fill)
     }
 
     private func setUpCamera() {
@@ -537,7 +547,12 @@ final class GameCoordinator: NSObject, SCNSceneRendererDelegate, UIGestureRecogn
         }
 
         let geometry = SCNBox(width: 0.96, height: 0.06, length: 0.96, chamferRadius: 0)
-        geometry.firstMaterial?.diffuse.contents = color
+        let material = SCNMaterial()
+        material.lightingModel = .physicallyBased
+        material.diffuse.contents = color
+        material.roughness.contents = zone.floorType == "tile" ? 0.25 : (zone.floorType == "grass" ? 0.95 : 0.6)
+        material.metalness.contents = 0.0
+        geometry.materials = [material]
         let node = SCNNode(geometry: geometry)
         node.position = SCNVector3(Float(tx), -0.03, Float(ty))
         node.name = "floor:\(tx):\(ty)"
@@ -553,7 +568,14 @@ final class GameCoordinator: NSObject, SCNSceneRendererDelegate, UIGestureRecogn
         let box = wall.edge == .north
             ? SCNBox(width: wallLength, height: height, length: thickness, chamferRadius: 0)
             : SCNBox(width: thickness, height: height, length: wallLength, chamferRadius: 0)
-        box.firstMaterial?.diffuse.contents = wall.kind == .window ? UIColor(hex: "#dff1ff") : UIColor(hex: "#f1e8d9")
+        let isWindow = wall.kind == .window
+        let wallMaterial = SCNMaterial()
+        wallMaterial.lightingModel = .physicallyBased
+        wallMaterial.diffuse.contents = isWindow ? UIColor(hex: "#dff1ff") : UIColor(hex: "#f1e8d9")
+        wallMaterial.roughness.contents = isWindow ? 0.05 : 0.85
+        wallMaterial.metalness.contents = isWindow ? 0.2 : 0.0
+        wallMaterial.transparency = isWindow ? 0.55 : 1.0
+        box.materials = [wallMaterial]
 
         let node = SCNNode(geometry: box)
         let cx = Float(wall.tx), cz = Float(wall.ty)
@@ -566,16 +588,14 @@ final class GameCoordinator: NSObject, SCNSceneRendererDelegate, UIGestureRecogn
 
     private func makeFurniture(_ item: PlacedItem) -> SCNNode? {
         guard let cat = World.furnitureCatalog[item.type] else { return nil }
-        let boxHeight = max(0.15, Float(cat.height) / 55)
 
-        let box = SCNBox(width: 0.7, height: CGFloat(boxHeight), length: 0.7, chamferRadius: 0.02)
-        box.firstMaterial?.diffuse.contents = UIColor(hex: cat.color)
-        let node = SCNNode(geometry: box)
-        node.position = SCNVector3(Float(item.x), boxHeight / 2, Float(item.y))
+        let node = FurnitureModelBuilder.build(type: item.type, color: UIColor(hex: cat.color))
+        node.position = SCNVector3(Float(item.x), 0, Float(item.y))
         node.name = "item:\(item.id)"
 
+        let iconY = FurnitureModelBuilder.iconHeight(for: item.type)
         let icon = makeBillboardLabel(cat.icon, size: 0.28)
-        icon.position = SCNVector3(0, boxHeight / 2 + 0.24, 0)
+        icon.position = SCNVector3(0, iconY, 0)
         node.addChildNode(icon)
 
         return node

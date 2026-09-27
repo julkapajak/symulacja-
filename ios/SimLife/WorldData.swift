@@ -34,7 +34,6 @@ struct FurnitureCatalogEntry {
     let label: String
     let icon: String
     let color: String
-    let height: CGFloat
     let cost: Int
     let action: FurnitureAction?
 }
@@ -42,7 +41,6 @@ struct FurnitureCatalogEntry {
 enum World {
     static let cols = 16
     static let rows = 9
-    static let wallHeight: CGFloat = 88
 
     static let zones: [Zone] = [
         Zone(x0: 0, y0: 0, x1: 3, y1: 3, color: "#e8d2a8", name: "kuchnia", floorType: "tile"),
@@ -103,27 +101,27 @@ enum World {
     }
 
     static let furnitureCatalog: [String: FurnitureCatalogEntry] = [
-        "fridge": FurnitureCatalogEntry(label: "Lodówka", icon: "🍽️", color: "#f2f4f4", height: 40, cost: 300, action:
+        "fridge": FurnitureCatalogEntry(label: "Lodówka", icon: "🍽️", color: "#f2f4f4", cost: 300, action:
             FurnitureAction(label: "Zjedz", need: "hunger", gain: 60, durationMinutes: 20, side: [:], isWork: false, skill: "cooking", skillGain: 0.12)),
-        "sink": FurnitureCatalogEntry(label: "Umywalka", icon: "🚰", color: "#dceff5", height: 20, cost: 120, action:
+        "sink": FurnitureCatalogEntry(label: "Umywalka", icon: "🚰", color: "#dceff5", cost: 120, action:
             FurnitureAction(label: "Umyj ręce", need: "hygiene", gain: 20, durationMinutes: 8, side: [:], isWork: false, skill: nil, skillGain: 0)),
-        "toilet": FurnitureCatalogEntry(label: "Toaleta", icon: "🚽", color: "#ffffff", height: 22, cost: 250, action:
+        "toilet": FurnitureCatalogEntry(label: "Toaleta", icon: "🚽", color: "#ffffff", cost: 250, action:
             FurnitureAction(label: "Skorzystaj z toalety", need: "bladder", gain: 100, durationMinutes: 6, side: [:], isWork: false, skill: nil, skillGain: 0)),
-        "shower": FurnitureCatalogEntry(label: "Prysznic", icon: "🚿", color: "#cdeaf7", height: 34, cost: 350, action:
+        "shower": FurnitureCatalogEntry(label: "Prysznic", icon: "🚿", color: "#cdeaf7", cost: 350, action:
             FurnitureAction(label: "Weź prysznic", need: "hygiene", gain: 100, durationMinutes: 15, side: ["energy": 5], isWork: false, skill: nil, skillGain: 0)),
-        "bed": FurnitureCatalogEntry(label: "Łóżko", icon: "🛏️", color: "#e3d3f5", height: 16, cost: 400, action:
+        "bed": FurnitureCatalogEntry(label: "Łóżko", icon: "🛏️", color: "#e3d3f5", cost: 400, action:
             FurnitureAction(label: "Śpij", need: "energy", gain: 100, durationMinutes: 240, side: ["hygiene": -10, "bladder": -15], isWork: false, skill: nil, skillGain: 0)),
-        "bookshelf": FurnitureCatalogEntry(label: "Regał", icon: "📚", color: "#b3814f", height: 42, cost: 220, action:
+        "bookshelf": FurnitureCatalogEntry(label: "Regał", icon: "📚", color: "#b3814f", cost: 220, action:
             FurnitureAction(label: "Czytaj", need: "fun", gain: 25, durationMinutes: 30, side: [:], isWork: false, skill: nil, skillGain: 0)),
-        "sofa": FurnitureCatalogEntry(label: "Sofa", icon: "🛋️", color: "#efa08a", height: 22, cost: 280, action:
+        "sofa": FurnitureCatalogEntry(label: "Sofa", icon: "🛋️", color: "#efa08a", cost: 280, action:
             FurnitureAction(label: "Odpoczywaj", need: "fun", gain: 20, durationMinutes: 40, side: ["energy": 10], isWork: false, skill: nil, skillGain: 0)),
-        "tv": FurnitureCatalogEntry(label: "Telewizor", icon: "📺", color: "#33393f", height: 30, cost: 500, action:
+        "tv": FurnitureCatalogEntry(label: "Telewizor", icon: "📺", color: "#33393f", cost: 500, action:
             FurnitureAction(label: "Oglądaj TV", need: "fun", gain: 35, durationMinutes: 60, side: ["energy": -5], isWork: false, skill: nil, skillGain: 0)),
-        "computer": FurnitureCatalogEntry(label: "Komputer", icon: "💻", color: "#7a828c", height: 26, cost: 450, action:
+        "computer": FurnitureCatalogEntry(label: "Komputer", icon: "💻", color: "#7a828c", cost: 450, action:
             FurnitureAction(label: "Graj na komputerze", need: "fun", gain: 30, durationMinutes: 55, side: ["energy": -10], isWork: false, skill: nil, skillGain: 0)),
-        "car": FurnitureCatalogEntry(label: "Praca (Samochód)", icon: "🚗", color: "#e35b52", height: 26, cost: 0, action:
+        "car": FurnitureCatalogEntry(label: "Praca (Samochód)", icon: "🚗", color: "#e35b52", cost: 0, action:
             FurnitureAction(label: "Jedź do pracy", need: nil, gain: 0, durationMinutes: 480, side: ["energy": -30, "fun": -10, "social": -10, "hygiene": -15, "hunger": -20], isWork: true, skill: nil, skillGain: 0)),
-        "tree": FurnitureCatalogEntry(label: "Drzewo", icon: "🌳", color: "#5fae5f", height: 36, cost: 60, action: nil),
+        "tree": FurnitureCatalogEntry(label: "Drzewo", icon: "🌳", color: "#5fae5f", cost: 60, action: nil),
     ]
 
     /// Furniture that can be bought and placed in build mode. The car is excluded — it's the
