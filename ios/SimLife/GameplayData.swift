@@ -93,8 +93,6 @@ struct Aspiration {
 }
 
 enum AspirationCatalog {
-    // "soulmate" (build a full relationship with a housemate) isn't ported yet — there's no
-    // second Sim to have a relationship with.
     static let all: [String: Aspiration] = [
         "chef": Aspiration(
             name: "Mistrz Kuchni", icon: "🍳", desc: "Osiągnij najwyższy poziom gotowania.", reward: 400,
@@ -116,5 +114,51 @@ enum AspirationCatalog {
             check: { ($0.skills["fitness"] ?? 0) >= SkillCatalog.maxLevel },
             progress: { (min($0.skills["fitness"] ?? 0, SkillCatalog.maxLevel), SkillCatalog.maxLevel) }
         ),
+        // "soulmate"'s check needs the shared relationship value, which SimNode doesn't have —
+        // GameCoordinator special-cases it (see checkSoulmateAspiration/aspirationInfo there)
+        // rather than through the generic check/progress closures here.
+        "soulmate": Aspiration(
+            name: "Miłość Na Całe Życie", icon: "💗", desc: "Zbuduj pełną relację ze współlokatorem.", reward: 500,
+            check: { _ in false },
+            progress: { _ in (0, 100) }
+        ),
     ]
+}
+
+/// A social interaction with a housemate — ported from app.js's Porozmawiaj/Przytul/Pocałuj,
+/// each unlocked at a higher relationship level than the last.
+enum PartnerInteractionKind: String, CaseIterable {
+    case talk, hug, kiss
+
+    var label: String {
+        switch self {
+        case .talk: return "Rozmawiaj"
+        case .hug: return "Przytul"
+        case .kiss: return "Pocałuj"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .talk: return "💬"
+        case .hug: return "🤗"
+        case .kiss: return "💋"
+        }
+    }
+
+    var relationshipGain: Double {
+        switch self {
+        case .talk: return 4
+        case .hug: return 8
+        case .kiss: return 14
+        }
+    }
+
+    var requiredRelationship: Double {
+        switch self {
+        case .talk: return 0
+        case .hug: return 20
+        case .kiss: return 50
+        }
+    }
 }

@@ -12,10 +12,13 @@ struct CharacterCreatorView: View {
     @Binding var appearance: CharacterAppearance
     @Binding var trait: String?
     @Binding var aspiration: String
+    @Binding var partnerEnabled: Bool
+    @Binding var partnerName: String
+    @Binding var partnerAppearance: CharacterAppearance
     let onStart: () -> Void
 
     @State private var step = 0
-    private let totalSteps = 5
+    private let totalSteps = 6
 
     var body: some View {
         ZStack {
@@ -50,7 +53,8 @@ struct CharacterCreatorView: View {
         case 1: hairAndSkinStep
         case 2: clothingAndBodyStep
         case 3: traitStep
-        default: aspirationStep
+        case 4: aspirationStep
+        default: partnerStep
         }
     }
 
@@ -155,6 +159,30 @@ struct CharacterCreatorView: View {
                             aspiration = key
                         }
                     }
+                }
+            }
+        }
+    }
+
+    private var partnerStep: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Toggle(isOn: $partnerEnabled) {
+                Text("Dodaj współlokatora").font(.headline)
+            }
+            .tint(.orange)
+            .foregroundStyle(.white)
+
+            if partnerEnabled {
+                section(title: "Imię współlokatora") {
+                    TextField("np. Kuba", text: $partnerName)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: 320)
+                }
+                section(title: "Odcień skóry") {
+                    swatchRow(CharacterCatalog.skinTones, selected: partnerAppearance.skinTone) { partnerAppearance.skinTone = $0 }
+                }
+                section(title: "Kolor ubrań") {
+                    swatchRow(CharacterCatalog.clothingColors, selected: partnerAppearance.clothingColor) { partnerAppearance.clothingColor = $0 }
                 }
             }
         }

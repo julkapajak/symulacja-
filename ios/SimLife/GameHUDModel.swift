@@ -27,6 +27,14 @@ final class GameHUDModel: ObservableObject {
     @Published var buildModeOn = false
     @Published var selectedItemType: String?
 
+    // Housemate relationship. `partnerInteractionOptions` populates when the player taps the
+    // housemate while close enough; HUDView renders it as a small menu, and each button tap
+    // calls `onInteraction` (set by GameCoordinator) to actually apply the interaction.
+    @Published var hasPartner = false
+    @Published var relationship: Double = 0
+    @Published var partnerInteractionOptions: [PartnerInteractionKind] = []
+    var onInteraction: ((PartnerInteractionKind) -> Void)?
+
     func postToast(_ text: String) {
         let toast = Toast(text: text)
         toasts.append(toast)

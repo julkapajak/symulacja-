@@ -1,4 +1,4 @@
-# SimLife na iPada — Faza 9 (personalizacja wyglądu)
+# SimLife na iPada — Faza 10 (współlokator)
 
 To jest natywna aplikacja SwiftUI, oddzielna od wersji przeglądarkowej w katalogu głównym repo. Faza 0 udowodniła, że cały łańcuch narzędzi (XcodeGen → Xcode → symulator) działa. Fazy 1-7 zbudowały pełną rozgrywkę w silniku 2D (SpriteKit, izometryczny rzut jak w wersji przeglądarkowej). **Faza 8 to duża zmiana architektoniczna: przepisanie całego renderowania na prawdziwe 3D (SceneKit)** z kamerą, którą można swobodnie obracać wokół domu (pełne 360°) i przybliżać/oddalać — na życzenie, zamiast stałego kąta izometrycznego. Cała rozgrywka (potrzeby, akcje, kariera, aspiracje, tryb budowania, zapis) działa identycznie jak wcześniej — zmienił się tylko sposób rysowania i oglądania świata.
 
@@ -42,6 +42,16 @@ Sim ma też teraz proste oczy (twarz przestała być pustą kulką). Wygląd zap
 
 > **Uwaga:** ponieważ zmienił się format zapisu (doszedł wygląd), stary zapis z Faz 1-8 nie wczyta się poprawnie — gra po prostu pokaże kreator postaci od nowa, tak jakby to było pierwsze uruchomienie. To nie błąd, tylko jednorazowy reset przy zmianie struktury zapisu.
 
+Kreator postaci działa jako **kroki** (przyciski Wstecz/Dalej na dole, kropki postępu u góry) zamiast jednej długiej przewijanej strony — łatwiej to obsłużyć na symulatorze.
+
+Faza 10 dodaje **współlokatora**:
+
+- Ostatni krok kreatora postaci to teraz pytanie "Dodaj współlokatora" — włącznik, a po włączeniu: imię, odcień skóry i kolor ubrań (uproszczony kreator, bez cech/aspiracji dla współlokatora).
+- Współlokator chodzi po domu **samodzielnie** — ma własne potrzeby i częściej niż Twój Sim sam z siebie idzie zaspokoić potrzebę zabawy/kontaktów, nawet gdy nic nie jest jeszcze krytyczne (jest "proaktywny", tak jak w wersji przeglądarkowej).
+- **Dotknij współlokatora**, żeby wejść w interakcję — jeśli jesteście daleko, Twój Sim najpierw do niego podejdzie. Pojawi się menu: **Rozmawiaj** (zawsze dostępne), **Przytul** (odblokowuje się przy bliskości ≥20) i **Pocałuj** (≥50) — każda zwiększa pasek bliskości (widoczny jako serduszko w HUD-zie) i potrzebę kontaktów obojga.
+- Aspiracja **Miłość Na Całe Życie** (wybierana w kreatorze) spełnia się przy bliskości 100.
+- Współlokator zapisuje się razem z resztą stanu gry.
+
 Masz MacBooka Air M1 — to wystarczy, żeby zrobić i przetestować całość lokalnie, bez czekania na CI.
 
 ## Jednorazowe przygotowanie Maca
@@ -66,16 +76,17 @@ open SimLife.xcodeproj
 W Xcode:
 1. Przy przycisku ▶ (Play) w górnym pasku wybierz symulator, np. **iPad Pro 13-inch (M4)**.
 2. Naciśnij ▶ (albo `Cmd+R`).
-3. Ponieważ format zapisu się zmienił w tej fazie, stary zapis się nie wczyta i od razu zobaczysz kreator postaci — pole na imię, kółka kolorów skóry/włosów/ubrań, listę fryzur, sylwetek, cech charakteru i aspiracji, a na dole przycisk "Zacznij grę".
-4. Po dotknięciu "Zacznij grę" powinnaś zobaczyć: niebieskie tło, prawdziwy trójwymiarowy dom (bryły ścian, kolorowe podłogi per pokój, meble jako kolorowe pudełka z unoszącą się nad nimi ikoną) i stojącego Sima (kapsuła w kolorze ubrań + głowa w wybranym odcieniu skóry, z oczami i włosami) w wybranym wyglądzie.
+3. Ponieważ format zapisu się zmienił, stary zapis się nie wczyta i od razu zobaczysz kreator postaci — przechodź przez kroki przyciskiem "Dalej" (imię → skóra/włosy/fryzura → ubrania/sylwetka → cecha → aspiracja → współlokator). Na ostatnim kroku spróbuj włączyć współlokatora i wybrać mu imię/wygląd, a potem dotknij "Zacznij grę".
+4. Powinnaś zobaczyć: niebieskie tło, prawdziwy trójwymiarowy dom (bryły ścian, kolorowe podłogi per pokój, meble jako kolorowe pudełka z unoszącą się nad nimi ikoną), stojącego Sima w wybranym wyglądzie i — jeśli włączyłaś współlokatora — drugą postać obok.
 5. **Przeciągnij palcem/myszką** po ekranie — kamera powinna obracać się wokół domu w poziomie (pełne 360°), przy zawsze takim samym kącie patrzenia w dół, jak w The Sims. **Uszczypnij** (na symulatorze: Option + przeciągnięcie) — przybliżenie/oddalenie.
 6. Dotknij dowolnego wolnego pola podłogi — Sim powinien tam dojść, omijając ściany. Dotknij lodówki, łóżka, prysznica, TV albo komputera — Sim podejdzie i zacznie z nich korzystać (dymek z komunikatem, pasek potrzeby rośnie). Dotknij samochodu w godzinach 8:00–18:00, żeby poszedł do pracy.
 7. Zamknij i ponownie uruchom aplikację — stan gry powinien zostać taki, jaki był.
 8. Dotknij 🔨 w prawym górnym rogu, wybierz mebel z paska na dole, dotknij puste pole żeby go postawić. Dotknij dowolny mebel (nadal w trybie budowania), żeby go sprzedać za połowę ceny.
 9. Obok pieniędzy/dnia/godziny w górnym pasku powinien być widoczny chip z ikoną i paskiem postępu aspiracji.
-10. Zamknij i ponownie uruchom aplikację — Sim powinien wrócić z dokładnie takim wyglądem, jaki wybrałaś w kreatorze (nie zresetować się do domyślnego).
+10. Zamknij i ponownie uruchom aplikację — Sim (i współlokator, jeśli go dodałaś) powinni wrócić z dokładnie takim wyglądem, jaki wybrałaś, i tym samym poziomem bliskości.
+11. Jeśli masz współlokatora: powinnaś zobaczyć serduszko z paskiem bliskości w HUD-zie, a współlokator powinien od czasu do czasu sam iść coś porobić (nie tylko stać w miejscu). Dotknij go — jeśli jest blisko, od razu pojawi się menu (Rozmawiaj/Przytul/Pocałuj — te dwa ostatnie odblokowują się z wyższą bliskością); jeśli jest daleko, Twój Sim najpierw do niego podejdzie.
 
-Jeśli to działa — mamy solidny szkielet gry w prawdziwym 3D z prawdziwą personalizacją. Dalej w planie: współlokator (drugi Sim + relacje).
+Jeśli to działa — mamy kompletną grę: dom w 3D, pełną rozgrywkę, personalizację i współlokatora z relacją. To domyka pierwotną listę funkcji z wersji przeglądarkowej.
 
 ## Testowanie na prawdziwym iPadzie (opcjonalnie, już teraz)
 

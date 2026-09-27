@@ -13,6 +13,7 @@ final class GameCoordinator: NSObject, SCNSceneRendererDelegate, UIGestureRecogn
     private let cameraTargetNode = SCNNode()
     private let worldNode = SCNNode()
     private var simNode: SimNode!
+    private var partnerNode: SimNode?
     private var buildState: BuildState!
     private var furnitureNodes: [String: SCNNode] = [:]
 
@@ -21,7 +22,18 @@ final class GameCoordinator: NSObject, SCNSceneRendererDelegate, UIGestureRecogn
     /// Set by ContentView right after creating the coordinator. renderer(_:updateAtTime:) pushes
     /// simulation state into it every frame; nil only for the handful of frames before that
     /// assignment lands.
-    var hud: GameHUDModel?
+    var hud: GameHUDModel? {
+        didSet {
+            hud?.onInteraction = { [weak self] kind in self?.performInteraction(kind) }
+        }
+    }
+
+    // Housemate relationship (shared, not per-sim — mirrors app.js's state.relationship).
+    private var relationship: Double = 30
+    /// Set from GameCoordinator.renderer(_:updateAtTime:) when the player's walk-to-housemate
+    /// finishes, so the interaction menu can be shown (from the main-thread dispatch, since it
+    /// touches @Published HUD state) once they're actually adjacent.
+    private var awaitingPartnerMenu = false
 
     // Camera orbit state (spherical coordinates around the house's center). Pitch is a fixed
     // constant, not user-controllable — like the classic Sims camera, dragging only spins the
@@ -57,6 +69,12 @@ final class GameCoordinator: NSObject, SCNSceneRendererDelegate, UIGestureRecogn
     private var characterTrait: String?
     private var characterAspiration: String?
 
+    // Housemate choice from the character creator's optional last step. Also set (before
+    // buildWorld() runs) from a save's partner data — see start().
+    private var wantsPartner = false
+    private var partnerName = "Współlokator"
+    private var partnerAppearance = CharacterAppearance.default
+
     private var hasStarted = false
 
     deinit {
@@ -68,6 +86,12 @@ final class GameCoordinator: NSObject, SCNSceneRendererDelegate, UIGestureRecogn
         characterAppearance = appearance
         characterTrait = trait
         characterAspiration = aspiration
+    }
+
+    func configureNewPartner(name: String, appearance: CharacterAppearance) {
+        wantsPartner = true
+        partnerName = name.isEmpty ? "Współlokator" : name
+        partnerAppearance = appearance
     }
 
     // MARK: - Setup
@@ -87,15 +111,29 @@ final class GameCoordinator: NSObject, SCNSceneRendererDelegate, UIGestureRecogn
         let savedData = SaveStore.load()
         buildState = BuildState(items: savedData?.items ?? World.starterItems)
 
+        // Read before buildWorld() so it knows whether to construct a partner node at all —
+        // applySaveData(_:) below only updates an *existing* node's stats/appearance, it can't
+        // retroactively create one.
+        if let partnerSave = savedData?.partner {
+            wantsPartner = true
+            partnerName = partnerSave.name
+            partnerAppearance = partnerSave.appearance
+        }
+
         buildWorld()
         scene.rootNode.addChildNode(worldNode)
         simNode.buildState = buildState
+        partnerNode?.buildState = buildState
 
         if let savedData {
             money = savedData.money
             day = savedData.day
             minutesOfDay = savedData.minutesOfDay
+            relationship = savedData.relationship
             simNode.applySaveData(savedData.sim)
+            if let partnerSave = savedData.partner {
+                partnerNode?.applySaveData(partnerSave)
+            }
         }
 
         NotificationCenter.default.addObserver(self, selector: #selector(persistState), name: UIApplication.willResignActiveNotification, object: nil)
@@ -190,6 +228,11 @@ final class GameCoordinator: NSObject, SCNSceneRendererDelegate, UIGestureRecogn
             return
         }
 
+        if name == "partner" {
+            handlePartnerTap()
+            return
+        }
+
         if name.hasPrefix("item:") {
             let id = String(name.dropFirst("item:".count))
             guard let item = buildState.item(withID: id), World.furnitureCatalog[item.type]?.action != nil else { return }
@@ -211,6 +254,57 @@ final class GameCoordinator: NSObject, SCNSceneRendererDelegate, UIGestureRecogn
         let parts = name.dropFirst("floor:".count).split(separator: ":")
         guard parts.count == 2, let tx = Int(parts[0]), let ty = Int(parts[1]) else { return nil }
         return (tx, ty)
+    }
+
+    // MARK: - Housemate interactions
+
+    /// Tapping the housemate either opens the interaction menu right away (already adjacent) or
+    /// walks the player Sim there first — mirrors app.js's "click roommate when close to interact".
+    private func handlePartnerTap() {
+        guard let partner = partnerNode else { return }
+        if tileDistance(simNode.tile, partner.tile) <= 1 {
+            if let hud { presentPartnerMenu(to: hud) }
+            return
+        }
+        let occupied = buildState.occupiedTiles()
+        guard let route = Pathfinding.findPathToNeighbor(from: simNode.tile, target: partner.tile, occupied: occupied) else { return }
+        simNode.cancelCurrentActivity()
+        simNode.path = route
+        awaitingPartnerMenu = true
+    }
+
+    private func tileDistance(_ a: (x: Int, y: Int), _ b: (x: Int, y: Int)) -> Int {
+        abs(a.x - b.x) + abs(a.y - b.y)
+    }
+
+    /// Called from the main-thread dispatch in renderer(_:updateAtTime:) once a walk-to-housemate
+    /// finishes — only actually opens the menu if they ended up adjacent (a housemate can wander
+    /// off mid-walk, in which case this quietly does nothing).
+    private func presentPartnerMenuIfClose() {
+        guard let hud, let partner = partnerNode, tileDistance(simNode.tile, partner.tile) <= 1 else { return }
+        presentPartnerMenu(to: hud)
+    }
+
+    private func presentPartnerMenu(to hud: GameHUDModel) {
+        var options: [PartnerInteractionKind] = [.talk]
+        if relationship >= PartnerInteractionKind.hug.requiredRelationship { options.append(.hug) }
+        if relationship >= PartnerInteractionKind.kiss.requiredRelationship { options.append(.kiss) }
+        hud.partnerInteractionOptions = options
+    }
+
+    /// Applies an interaction picked from the HUD's menu (see HUDView.partnerInteractionMenu) —
+    /// always runs on the main thread, since it's a direct SwiftUI Button action.
+    private func performInteraction(_ kind: PartnerInteractionKind) {
+        guard let partner = partnerNode else { return }
+        relationship = min(100, relationship + kind.relationshipGain)
+        simNode.needs["social"] = min(100, (simNode.needs["social"] ?? 0) + 10)
+        partner.needs["social"] = min(100, (partner.needs["social"] ?? 0) + 10)
+        if kind != .talk {
+            simNode.needs["fun"] = min(100, (simNode.needs["fun"] ?? 0) + 8)
+            partner.needs["fun"] = min(100, (partner.needs["fun"] ?? 0) + 8)
+        }
+        hud?.postToast("\(simNode.simName) i \(partner.simName): \(kind.label.lowercased())! (+\(Int(kind.relationshipGain)) bliskości)")
+        hud?.partnerInteractionOptions = []
     }
 
     // MARK: - Build mode
@@ -272,12 +366,22 @@ final class GameCoordinator: NSObject, SCNSceneRendererDelegate, UIGestureRecogn
         let dt = min(time - lastUpdateTime, 0.1)
 
         simNode.advance(dt: Float(dt))
+        partnerNode?.advance(dt: Float(dt))
 
         var toastMessages: [String] = []
 
         let hour = Int(minutesOfDay / 60) % 24
         if let message = simNode.beginPendingActionIfArrived(hour: hour) {
             toastMessages.append(message)
+        }
+        if let message = partnerNode?.beginPendingActionIfArrived(hour: hour) {
+            toastMessages.append(message)
+        }
+
+        var shouldShowPartnerMenu = false
+        if awaitingPartnerMenu, simNode.path.isEmpty {
+            awaitingPartnerMenu = false
+            shouldShowPartnerMenu = true
         }
 
         accumMs += dt * 1000
@@ -297,6 +401,7 @@ final class GameCoordinator: NSObject, SCNSceneRendererDelegate, UIGestureRecogn
             guard let self, let hud = self.hud else { return }
             for message in toastMessages { hud.postToast(message) }
             self.pushHUD(to: hud)
+            if shouldShowPartnerMenu { self.presentPartnerMenuIfClose() }
         }
     }
 
@@ -306,7 +411,17 @@ final class GameCoordinator: NSObject, SCNSceneRendererDelegate, UIGestureRecogn
         hud.timeLabel = formattedTime()
         hud.jobTitle = CareerCatalog.jobTitles[simNode.jobLevel]
         hud.needs = simNode.needs
-        if let info = simNode.aspirationInfo {
+        hud.hasPartner = partnerNode != nil
+        hud.relationship = relationship
+
+        if simNode.aspiration == "soulmate" {
+            // Needs the shared relationship value, which SimNode doesn't have — see
+            // checkSoulmateAspiration.
+            hud.aspirationIcon = "💗"
+            hud.aspirationName = "Miłość Na Całe Życie"
+            hud.aspirationProgress = partnerNode != nil ? min(1, relationship / 100) : 0
+            hud.aspirationDone = simNode.aspirationDone
+        } else if let info = simNode.aspirationInfo {
             hud.aspirationIcon = info.icon
             hud.aspirationName = info.name
             hud.aspirationProgress = info.progress
@@ -330,12 +445,30 @@ final class GameCoordinator: NSObject, SCNSceneRendererDelegate, UIGestureRecogn
             toastMessages.append(result.message)
         }
         toastMessages.append(contentsOf: simNode.checkWarnings())
-        if let message = simNode.tryAutonomy() {
+        if let message = simNode.tryAutonomy(proactive: false) {
             toastMessages.append(message)
         }
         if let result = simNode.checkAspiration() {
             money += result.moneyDelta
             toastMessages.append(result.message)
+        }
+        if let result = simNode.checkSoulmateAspiration(hasPartner: partnerNode != nil, relationship: relationship) {
+            money += result.moneyDelta
+            toastMessages.append(result.message)
+        }
+
+        if let partner = partnerNode {
+            partner.applyNeedDecay(minutes: 1)
+            if let result = partner.progressAction(minutes: 1) {
+                money += result.moneyDelta
+                toastMessages.append(result.message)
+            }
+            toastMessages.append(contentsOf: partner.checkWarnings())
+            // proactive=true: a housemate wanders off for fun/social on its own, not just when
+            // something is critical — mirrors app.js's autonomyTick(sim, true) for the partner.
+            if let message = partner.tryAutonomy(proactive: true) {
+                toastMessages.append(message)
+            }
         }
     }
 
@@ -348,7 +481,10 @@ final class GameCoordinator: NSObject, SCNSceneRendererDelegate, UIGestureRecogn
     // MARK: - Save/load
 
     @objc private func persistState() {
-        let data = GameSaveData(money: money, day: day, minutesOfDay: minutesOfDay, sim: simNode.saveData, items: buildState.items)
+        let data = GameSaveData(
+            money: money, day: day, minutesOfDay: minutesOfDay, sim: simNode.saveData, items: buildState.items,
+            relationship: relationship, partner: partnerNode?.saveData
+        )
         SaveStore.save(data)
     }
 
@@ -372,12 +508,18 @@ final class GameCoordinator: NSObject, SCNSceneRendererDelegate, UIGestureRecogn
             addFurnitureNode(for: item)
         }
 
-        simNode = SimNode(startX: 3, startY: 3, appearance: characterAppearance, name: characterName)
+        simNode = SimNode(startX: 3, startY: 3, appearance: characterAppearance, name: characterName, nodeTag: "sim")
         simNode.trait = characterTrait
         if let aspiration = characterAspiration {
             simNode.aspiration = aspiration
         }
         worldNode.addChildNode(simNode)
+
+        if wantsPartner {
+            let partner = SimNode(startX: 4, startY: 3, appearance: partnerAppearance, name: partnerName, nodeTag: "partner")
+            worldNode.addChildNode(partner)
+            partnerNode = partner
+        }
 
         worldNode.position = SCNVector3(-Float(World.cols - 1) / 2, 0, -Float(World.rows - 1) / 2)
     }

@@ -62,13 +62,18 @@ final class SimNode: SCNNode {
     var appearance: CharacterAppearance
     private let visualsRoot = SCNNode()
 
-    init(startX: Int, startY: Int, appearance: CharacterAppearance, name: String) {
+    /// "sim" for the player's own Sim, "partner" for a housemate — lets GameCoordinator tell
+    /// them apart in tap raycasts (see updateWorldPosition()).
+    private let nodeTag: String
+
+    init(startX: Int, startY: Int, appearance: CharacterAppearance, name: String, nodeTag: String = "sim") {
         gridX = Float(startX)
         gridY = Float(startY)
         simName = name
         needs = Dictionary(uniqueKeysWithValues: NeedKeys.all.map { ($0, 85.0) })
         aspiration = AspirationCatalog.all.keys.randomElement()
         self.appearance = appearance
+        self.nodeTag = nodeTag
         super.init()
 
         addChildNode(visualsRoot)
@@ -166,7 +171,7 @@ final class SimNode: SCNNode {
 
     func updateWorldPosition() {
         position = SCNVector3(gridX, 0, gridY)
-        name = "sim"
+        name = nodeTag
     }
 
     var tile: (x: Int, y: Int) {
@@ -325,13 +330,19 @@ final class SimNode: SCNNode {
 
     /// If idle and something is critically low, walk over and take care of it (mirrors app.js's
     /// autonomyTick with proactive=false, since there's no housemate yet to justify wandering).
-    func tryAutonomy() -> String? {
+    func tryAutonomy(proactive: Bool = false) -> String? {
         guard currentAction == nil, pendingItemID == nil, path.isEmpty else { return nil }
-        let threshold = 15.0
+        let threshold: Double = proactive ? 55 : 15
         let needy = NeedKeys.all
             .filter { (needs[$0] ?? 100) <= threshold }
             .sorted { (needs[$0] ?? 100) < (needs[$1] ?? 100) }
-        guard let need = needy.first else { return nil }
+        var need = needy.first
+        // A housemate (proactive=true) also occasionally wanders off for fun/social even when
+        // nothing is critically low — matches app.js's autonomyTick's proactive random branch.
+        if need == nil, proactive, Double.random(in: 0..<1) < 0.12 {
+            need = Bool.random() ? "fun" : "social"
+        }
+        guard let need else { return nil }
 
         let candidates = buildState.items.filter { item in
             guard let action = World.furnitureCatalog[item.type]?.action else { return false }
@@ -357,11 +368,23 @@ final class SimNode: SCNNode {
     /// Call once per simulated minute (mirrors app.js's checkAspiration). Returns a reward toast
     /// the first time the goal is met; nil every other time, including forever after.
     func checkAspiration() -> ActionResult? {
-        guard let key = aspiration, !aspirationDone, let asp = AspirationCatalog.all[key] else { return nil }
+        // "soulmate" needs the shared relationship value, which lives on GameCoordinator, not
+        // here — see checkSoulmateAspiration below.
+        guard let key = aspiration, key != "soulmate", !aspirationDone, let asp = AspirationCatalog.all[key] else { return nil }
         guard asp.check(self) else { return nil }
         aspirationDone = true
         let message = "🏆 \(simName) spełnił(a) aspirację „\(asp.name)”! (+\(Int(asp.reward)) zł)"
         return ActionResult(message: message, moneyDelta: asp.reward)
+    }
+
+    /// Called by GameCoordinator once per simulated minute with the info only it has (whether a
+    /// housemate exists, and the shared relationship value).
+    func checkSoulmateAspiration(hasPartner: Bool, relationship: Double) -> ActionResult? {
+        guard aspiration == "soulmate", !aspirationDone, hasPartner, relationship >= 100 else { return nil }
+        aspirationDone = true
+        let reward = AspirationCatalog.all["soulmate"]?.reward ?? 500
+        let message = "🏆 \(simName) spełnił(a) aspirację „Miłość Na Całe Życie”! (+\(Int(reward)) zł)"
+        return ActionResult(message: message, moneyDelta: reward)
     }
 
     var aspirationInfo: (icon: String, name: String, progress: Double, done: Bool)? {

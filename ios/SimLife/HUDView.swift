@@ -6,18 +6,24 @@ struct HUDView: View {
     @ObservedObject var model: GameHUDModel
 
     var body: some View {
-        VStack {
-            topBar
-            Spacer()
-            toastStack
-            if model.buildModeOn {
-                buildStrip
+        ZStack {
+            VStack {
+                topBar
+                Spacer()
+                toastStack
+                if model.buildModeOn {
+                    buildStrip
+                }
+                needsBar
             }
-            needsBar
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 16)
+
+            if !model.partnerInteractionOptions.isEmpty {
+                partnerInteractionMenu
+            }
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 8)
-        .padding(.bottom, 16)
     }
 
     private var topBar: some View {
@@ -26,6 +32,9 @@ struct HUDView: View {
             hudChip(icon: "☀️", text: "Dzień \(model.day)")
             hudChip(icon: "🕒", text: model.timeLabel)
             aspirationChip
+            if model.hasPartner {
+                relationshipChip
+            }
             Spacer()
             Text(model.jobTitle)
                 .font(.caption.bold())
@@ -35,6 +44,47 @@ struct HUDView: View {
                 .background(.black.opacity(0.4), in: Capsule())
             buildToggle
         }
+    }
+
+    private var relationshipChip: some View {
+        HStack(spacing: 6) {
+            Text("❤️")
+            ProgressView(value: max(0, min(100, model.relationship)) / 100)
+                .frame(width: 56)
+                .tint(.pink)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(.black.opacity(0.4), in: Capsule())
+    }
+
+    /// Shown when the player taps the housemate while close enough — each button applies the
+    /// interaction via GameCoordinator (wired through model.onInteraction) and then closes itself.
+    private var partnerInteractionMenu: some View {
+        VStack(spacing: 10) {
+            Text("Interakcja").font(.headline).foregroundStyle(.white)
+            ForEach(model.partnerInteractionOptions, id: \.self) { kind in
+                Button {
+                    model.onInteraction?(kind)
+                } label: {
+                    HStack {
+                        Text(kind.icon)
+                        Text(kind.label)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(Color.white.opacity(0.15), in: RoundedRectangle(cornerRadius: 10))
+                }
+                .foregroundStyle(.white)
+            }
+            Button("Anuluj") { model.partnerInteractionOptions = [] }
+                .foregroundStyle(.white.opacity(0.7))
+                .padding(.top, 4)
+        }
+        .padding(20)
+        .background(.black.opacity(0.85), in: RoundedRectangle(cornerRadius: 18))
+        .frame(maxWidth: 260)
     }
 
     private var aspirationChip: some View {

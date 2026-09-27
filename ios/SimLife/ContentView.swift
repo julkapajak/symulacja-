@@ -15,6 +15,9 @@ struct ContentView: View {
     @State private var draftAppearance = CharacterAppearance.default
     @State private var draftTrait: String?
     @State private var draftAspiration = AspirationCatalog.all.keys.sorted().first ?? "chef"
+    @State private var draftPartnerEnabled = false
+    @State private var draftPartnerName = ""
+    @State private var draftPartnerAppearance = CharacterAppearance.default
 
     var body: some View {
         GeometryReader { proxy in
@@ -28,14 +31,17 @@ struct ContentView: View {
 
                 if needsCharacterCreation {
                     CharacterCreatorView(
-                        name: $draftName, appearance: $draftAppearance, trait: $draftTrait, aspiration: $draftAspiration
+                        name: $draftName, appearance: $draftAppearance, trait: $draftTrait, aspiration: $draftAspiration,
+                        partnerEnabled: $draftPartnerEnabled, partnerName: $draftPartnerName, partnerAppearance: $draftPartnerAppearance
                     ) {
                         coordinator.configureNewCharacter(name: draftName, appearance: draftAppearance, trait: draftTrait, aspiration: draftAspiration)
+                        if draftPartnerEnabled {
+                            coordinator.configureNewPartner(name: draftPartnerName, appearance: draftPartnerAppearance)
+                        }
                         needsCharacterCreation = false
                     }
                     // Without an explicit frame here, this view sizes itself to its own content
-                    // rather than the screen, so its internal ScrollView never learns it needs to
-                    // scroll — the "Zacznij grę" button at the bottom becomes unreachable.
+                    // rather than the screen instead of filling it properly.
                     .frame(width: proxy.size.width, height: proxy.size.height)
                     .ignoresSafeArea()
                 }
